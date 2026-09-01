@@ -14,6 +14,7 @@
 | `06_langgraph_conditional_edge.ipynb` | 가짜 재무 데이터와 사람이 지정한 분석 유형을 사용해 LangGraph Conditional Edge의 경로 선택을 확인한다. |
 | `07_langgraph_opendart_node.ipynb` | 기존 OpenDART 호출 함수를 LangGraph Node에서 실행하고 실제 재무정보가 State를 통해 다음 Node에 전달되는 흐름을 확인한다. |
 | `08_llm_router_langgraph.ipynb` | 로컬 LLM이 자연어 재무 질문을 구조화된 분석 유형으로 분류하고, LangGraph Conditional Edge가 해당 경로를 선택하는 흐름을 확인한다. |
+| `09_llm_router_opendart_workflow.ipynb` | LLM이 기업명·사업연도·분석 유형을 구조화하고, LangGraph가 실제 OpenDART 조회와 기본 재무 또는 영업이익률 경로를 실행하는 흐름을 확인한다. |
 
 ## 참고
 
