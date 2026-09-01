@@ -15,6 +15,7 @@
 | `07_langgraph_opendart_node.ipynb` | 기존 OpenDART 호출 함수를 LangGraph Node에서 실행하고 실제 재무정보가 State를 통해 다음 Node에 전달되는 흐름을 확인한다. |
 | `08_llm_router_langgraph.ipynb` | 로컬 LLM이 자연어 재무 질문을 구조화된 분석 유형으로 분류하고, LangGraph Conditional Edge가 해당 경로를 선택하는 흐름을 확인한다. |
 | `09_llm_router_opendart_workflow.ipynb` | LLM이 기업명·사업연도·분석 유형을 구조화하고, LangGraph가 실제 OpenDART 조회와 기본 재무 또는 영업이익률 경로를 실행하는 흐름을 확인한다. |
+| `10_llm_answer_from_opendart.ipynb` | 실제 OpenDART 재무정보를 근거로 사용해, LLM이 자연어 답변을 작성하는 별도 LangGraph Node의 역할을 확인한다. |
 
 ## 참고
 
