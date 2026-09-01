@@ -12,6 +12,7 @@
 | `04_opendart_tool_calling.ipynb` | OpenDART 재무 조회 함수를 단일 LangChain Tool로 연결해 실제 기업 재무정보를 조회하는 흐름을 확인한다. |
 | `05_langgraph_state_node_edge.ipynb` | 가짜 재무 데이터를 사용해 LangGraph의 State, Node, Edge와 State 갱신 흐름을 확인한다. |
 | `06_langgraph_conditional_edge.ipynb` | 가짜 재무 데이터와 사람이 지정한 분석 유형을 사용해 LangGraph Conditional Edge의 경로 선택을 확인한다. |
+| `07_langgraph_opendart_node.ipynb` | 기존 OpenDART 호출 함수를 LangGraph Node에서 실행하고 실제 재무정보가 State를 통해 다음 Node에 전달되는 흐름을 확인한다. |
 
 ## 참고
 
