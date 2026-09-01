@@ -88,7 +88,7 @@ OpenDART는 공시 검색, 기업 고유번호, 공시 원본 파일 등 기업 
 
 현재는 최종 pipeline 구현 전 학습·검증 단계입니다. OpenDART 재무 조회, LangChain의 Structured Output·Tool Calling, LangGraph의 State·Node·Edge·조건 분기, 실제 OpenDART workflow, OpenDART 근거 기반 LLM 답변 생성을 notebook으로 확인했습니다.
 
-학습 노트북의 역할은 [notebooks/README.md](notebooks/README.md)에서 확인할 수 있습니다. 통합 Agent, RAG, 시장 데이터, multi-agent workflow, API 서버와 대시보드는 아직 구현하지 않았습니다.
+학습 노트북의 역할은 [notebooks/learning/README.md](notebooks/learning/README.md)에서 확인할 수 있습니다. 통합 Agent, RAG, 시장 데이터, multi-agent workflow, API 서버와 대시보드는 아직 구현하지 않았습니다.
 
 ## 시작하기
 
@@ -100,6 +100,6 @@ OpenDART는 공시 검색, 기업 고유번호, 공시 원본 파일 등 기업 
 OPENDART_API_KEY=발급받은_API_KEY
 ```
 
-4. `notebooks/`의 학습 노트북을 번호 순서대로 실행합니다.
+4. `notebooks/learning/`의 학습 노트북을 번호 순서대로 실행합니다.
 
 `.env`는 Git 추적 대상에서 제외되며 실제 API 키를 저장소에 커밋하지 않습니다.
