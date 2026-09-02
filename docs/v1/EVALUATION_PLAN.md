@@ -2,94 +2,114 @@
 
 ## 1. 평가 목적
 
-V1 평가는 “LLM 답변이 자연스러운가”만 보지 않는다. FinSight가 필요한 데이터를 올바르게 선택하고, 수치·계산·공시 근거를 정확히 연결하는지 측정해 최종 workflow를 선택하는 것이 목적이다.
+V1 평가는 LLM 답변의 자연스러움만 보지 않는다. FinSight가 질문에 맞는 조사 경로를 선택하고, OpenDART 수치·계산·사업보고서 근거를 정확히 연결하는지를 측정해 최종 workflow를 선택하는 것이 목적이다.
 
-평가 결과는 Prompt, Router, Tool 설명, retrieval 방식, 모델, Validator와 workflow 구조의 선택 근거로 사용한다.
+평가 결과는 Prompt, Router·Tool 설계, 기간 Resolver, RAG 방식, Validator, workflow와 모델 후보의 선택 근거로 사용한다.
 
-## 2. 평가 대상
+## 2. 평가 원칙
 
-| 대상 | 평가 질문 |
-|---|---|
-| 재무 조회 | 올바른 기업·사업연도·계정을 조회했는가 |
-| Calculator | 입력 수치와 공식으로 정확한 값을 계산했는가 |
-| Router | 질문에 맞는 작업과 인자를 생성했는가 |
-| 공시 검색·retrieval | 관련 공시 또는 원문 근거를 상위 결과에 찾았는가 |
-| 근거 검증 | 답변의 주요 주장이 제공 근거로 지원되는가 |
-| 운영 성능 | 품질을 유지하며 허용 가능한 시간·자원을 쓰는가 |
+- 실제 비교는 동일한 평가셋·데이터 기준일·모델 설정에서 A vs B로 수행한다.
+- Router, RAG, Validator, workflow를 한 실험에서 동시에 바꾸지 않는다.
+- 핵심 품질 지표에서 명확히 우세한 후보만 채택한다.
+- 지표별 우열이 갈리면 결과를 보류하고 실패 사례·사용 시나리오·비용을 추가 검토한다.
+- 비용·지연시간·자원 사용량은 품질이 동등하거나 비열등한 후보의 선택 근거로만 사용한다.
+- 실제 후보 비교 전에는 임의의 합격선이나 최종 후보를 정하지 않는다.
 
-## 3. 평가셋 설계
+## 3. 평가 질문과 정답 계약
 
 ### 질문 범주
 
-1. 단일 연도 재무 조회
-2. 다년도 재무 추세와 결정적 계산
-3. 기업·기간 조건의 공시 목록 검색
-4. 재무 수치와 공시 근거를 함께 요구하는 복합 질문
-5. 기업명·기간·지원 범위가 불명확하거나 지원하지 않는 질문
+1. 단일 기업·단일 사업연도 재무 조회
+2. 단일 기업 다년도 재무 추세와 계산
+3. 다기업 다년도 비교와 공통 사업연도 선택
+4. 기업·기간 조건 공시 목록 조회
+5. 사업보고서 원문 근거 검색
+6. 재무 수치와 사업보고서 근거를 함께 요구하는 복합 질문
+7. 모호한 기업명, 금융업, 데이터 부재, 지원하지 않는 투자 추천 등 경계 질문
 
-### 각 사례에 기록할 항목
+### 사례별 정답 정보
 
 - 질문 원문
-- 기업명, `corp_code`, 사업연도·기간
-- 기대 action 또는 workflow 경로와 정확한 인자
-- 정답 재무 수치와 계산 결과
-- 정답 공시 또는 원문 근거 목록
-- 허용 답변 범위와 금지 주장
-- 데이터 조회 기준일
+- 정답 기업명·`corp_code`·상장/비금융 판정
+- 정답 사업연도·결산일·다기업 공통 연도
+- 기대 Tool 집합과 인자
+- 정답 원천 수치·재무제표 기준·계산 결과
+- 정답 공시 목록 조건 또는 사업보고서 근거 문단·접수번호
+- 허용 답변 범위, 제한 문구, 금지 주장
+- 데이터 조회 기준일과 원문 링크
 
-### 데이터 분리
+### 개발/holdout 분리
 
-- 개발용 세트: Prompt·Router·retrieval·workflow를 비교하며 사용한다.
-- Holdout 세트: 최종 후보를 한 번만 확인한다.
-- 동일 공시 또는 거의 같은 질문이 두 세트에 중복되지 않도록 분리한다.
+- 개발 세트는 후보 비교에 사용한다.
+- holdout은 선택한 최종 후보를 한 번 확인하고 이후 회귀 기준으로 사용한다.
+- 같은 사업보고서, 같은 접수번호 또는 거의 같은 질문이 개발과 holdout에 겹치지 않도록 분리한다.
+- 사례 수·기업·업종 분포·반복 횟수는 실제 정답 근거를 수집한 뒤 사용자와 합의한다.
 
-사례 수와 정량 합격선은 첫 baseline 측정 전에 임의로 확정하지 않는다. 최소 사례 수, 기업·업종 분포, 모델별 반복 횟수는 V1 범위와 확보 가능한 정답 근거를 확인한 뒤 사용자와 합의한다.
+## 4. 평가 대상과 지표
 
-## 4. 지표
-
-| 구성요소 | 지표 | 의미 |
+| 대상 | 설계 또는 비교 대상 | 핵심 지표 |
 |---|---|---|
-| 재무 조회 | Field Accuracy | 기업·연도·계정·수치가 정답과 일치하는 비율 |
-| 계산 | Calculation Accuracy | 공식과 결과 값이 정답과 일치하는 비율 |
-| Router | Action/Route Selection Accuracy | 필요한 action, Node 또는 workflow 경로를 선택한 비율 |
-| Router | Argument Accuracy | 기업·기간·분석 유형 등 인자가 정확한 비율 |
-| 공시 retrieval | Recall@K | 정답 공시가 상위 K개 결과에 포함된 비율 |
-| 공시 retrieval | MRR / nDCG | 관련 공시가 상위 순위에 배치되는 정도 |
-| 근거 | Citation Correctness | 인용한 근거가 해당 주장·수치를 실제로 지원하는 비율 |
-| 근거 | Unsupported Claim Rate | 근거 없이 생성한 주요 주장 비율 |
-| 전체 | Task Completion Rate | 지원 질문을 근거와 함께 완료한 비율 |
-| 운영 | p50 / p95 Latency, Error Rate | 응답 시간 분포와 오류 비율 |
-| 모델 | 모델 파일 크기, VRAM·RAM Peak | 품질을 통과한 후보의 실행 자원 |
+| 기업 식별·대상 판정 | 기업명 해석, `corp_code`, 상장·비금융 판정 | Entity Accuracy, 대상 판정 Precision/Recall |
+| 기간 Resolver | 명시 연도, 최근 N년, 다기업 공통 사업연도 정책 | Period Exact Match, Common-Year Validity, Limitation Accuracy |
+| 재무 데이터 계약 | 계정 매핑, CFS 우선/OFS 대체, 단위·결측 처리 | Field Accuracy, Statement-Basis Accuracy, Missing-data Handling Accuracy |
+| 계산 | 공식·단위·위험 계산 처리 | Calculation Accuracy, Unsafe-calculation Rate |
+| Router·Tool | Prompt, structured schema, Tool 설명, 분기 방식 | Route Exact Match, Tool Precision/Recall/F1, Argument Exact Match, Over-call Rate, Invalid-plan Rate |
+| 공시 목록 | 기간·최종 제출본·원문 식별자 정책 | Date-filter Accuracy, 목록 Precision/Recall, 링크·접수번호 Accuracy |
+| 사업보고서 RAG | 파싱, chunking, embedding, retrieval, reranker | Passage Recall@K, MRR, nDCG@K, Citation Retrieval Recall, 검색 지연시간 |
+| 근거·답변 검증 | 규칙 기반·모델 기반 Validator 후보 | Numeric Faithfulness, Citation Correctness, Claim Support Precision, Unsupported Claim Rate, Limitation Accuracy |
+| end-to-end workflow | 조건부 실행, Validator 유무, 기준선 workflow | Task Completion Rate, Evidence-complete Task Rate, E2E Error/Partial-result Rate, 핵심 품질 지표 |
+| 운영 성능 | 품질 비열등 후보의 모델·workflow | p50/p95 Latency, Tool-call Count, Error Rate, VRAM/RAM Peak, cold/warm 시간 |
 
-## 5. 실행 원칙
+공시 목록은 기간 조건으로 반환되는 데이터이므로 RAG 지표를 적용하지 않는다. Recall@K, MRR, nDCG@K는 순위가 있는 사업보고서 passage retrieval에만 적용한다.
 
-- OpenDART 조회 기준일, 모델명·양자화, Prompt 버전, 코드 커밋, 하드웨어와 context 길이를 실행 기록에 남긴다.
-- 확률적 모델 평가는 반복 실행하고 단일 결과가 아니라 median과 p95를 기록한다.
-- 모델 로드·인덱스 생성 시간과 질의 처리 시간은 분리한다.
-- 수치 계산과 API 결과는 LLM 답변 품질과 분리해 검증한다.
-- retrieval이 없는 단계에는 Recall@K, MRR, nDCG를 억지로 사용하지 않는다.
+## 5. 후보 비교 설계
 
-## 6. V1 평가 순서
+### 5.1 데이터 계약과 계산
+
+이 단계는 후보 선택보다 정답 기반을 검증하는 단계다. 여러 비금융 업종·기업·연도에서 계정 매핑, CFS/OFS 대체, 단위, 결측과 계산 예외를 확인한다. 이 기반이 불안정하면 이후 Router·RAG·workflow 점수는 해석하지 않는다.
+
+### 5.2 Router·Tool·기간 해석
+
+Prompt·구조화 스키마·Tool 설명·분기 방식 후보를 비교한다. 실제 가용 사업연도 선택은 LLM이 아니라 기간 Resolver가 담당하며, Router는 `최근 N년` 같은 제약을 구조화하는 역할만 맡는다.
+
+### 5.3 사업보고서 RAG
+
+문서 파싱과 chunking을 먼저 비교하고, 선택된 문서 단위에서 retrieval과 reranker 후보를 비교한다. 조합 폭발을 피하기 위해 모든 후보를 한 번에 교차하지 않는다.
+
+### 5.4 Validator와 workflow ablation
+
+앞 단계에서 선택된 Tool·RAG 후보를 고정한 뒤 workflow 구조만 비교한다.
+
+최소 기준선 후보는 아래와 같다.
+
+1. 필요한 Tool만 조건부 실행, Validator 없음
+2. 필요한 Tool만 조건부 실행, Validator 있음
+3. 모든 Tool을 항상 실행
+
+3번은 최종안 후보가 아니라, 조건부 Routing이 품질·비용에 실제로 기여하는지 확인하는 기준선이다. 자동 재검색·재계획·병렬 실행은 이 비교 결과와 필요성이 확인되기 전에는 추가하지 않는다.
+
+## 6. 평가 순서
 
 ```text
-평가 질문·정답 근거 작성
-→ 재무 조회·계산 기준선 측정
-→ Router와 action 인자 비교
-→ 공시 retrieval 방식 비교
-→ 근거 검증 방식 비교
-→ 단일 workflow 후보 선정
-→ Holdout 재확인
-→ 통합 구현 승인 여부 결정
+평가 질문·정답·근거 데이터 계약 확정
+→ 데이터 계약·재무·계산 기준선 확인
+→ Router·Tool·기간 Resolver 후보 비교
+→ 공시 목록 정책 확인 및 사업보고서 RAG 후보 비교
+→ Validator 후보 비교
+→ workflow ablation
+→ holdout end-to-end 평가
+→ 최종 통합 구현 승인 여부 결정
 ```
 
-## 7. 산출물 원칙
+새 Tool, RAG 경로 또는 workflow 분기를 추가하면 해당 기능 평가뿐 아니라 기존 holdout end-to-end 회귀 평가를 다시 수행한다.
 
-실제 평가 단계로 넘어갈 때 아래 산출물을 분리한다.
+## 7. 실행 기록과 보고서
 
-- 평가셋과 정답 근거
-- 실행 설정 manifest
-- 원시 실행 결과
-- 지표 집계 결과
-- 채택·탈락 결정 기록
+실제 비교 실험에는 데이터 기준일, 원문 접수번호, 코드 커밋, Prompt 버전, 모델·양자화·temperature, context 길이, 하드웨어를 기록한다.
 
-아직 평가용 폴더와 파일 구조는 만들지 않는다. 이 문서를 바탕으로 목적·지표·폴더 구조를 사용자에게 먼저 보고하고 합의한 뒤 생성한다.
+- 확률적 모델은 반복 실행하여 median과 p95를 기록한다.
+- 로컬 모델은 cold/warm 지연시간, 모델 파일 크기, VRAM/RAM peak를 기록한다.
+- 모델 로드·인덱스 생성 시간과 질의 처리 시간은 분리한다.
+- 실제 비교 결과는 `docs/v1/reports/`에만 기록한다.
+
+평가셋, 실행 manifest, 원시 결과의 세부 폴더 구조는 실제 실험을 시작하기 전에 목적·후보·지표와 함께 사용자에게 별도로 제안하고 합의한 뒤 만든다.

@@ -5,9 +5,11 @@ V1의 데이터 계약과 초기 OpenDART 조회 범위를 정할 때 확인한 
 | 자료 | V1에서 확인할 내용 | 활용 목적 |
 |---|---|---|
 | [고유번호 API 개발가이드](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019018) | `corp_code`, `corp_name`, `stock_code`, `modify_date`가 ZIP 안 XML에 포함됨 | 기업명에서 OpenDART 고유번호를 찾는 기준 확인 |
+| [기업개황 API 개발가이드](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019002) | `stock_code`, `corp_cls`, `induty_code`, 결산월을 제공 | 상장 여부·업종·결산월 확인 기준 |
 | [단일회사 전체 재무제표 API 개발가이드](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS003&apiId=2019020) | `fnlttSinglAcntAll`의 요청 URL과 필수 인증·기업 식별 인자 | 사업보고서 기준 재무계정 raw 응답 확인 |
 | [정기보고서 재무정보 API 목록](https://opendart.fss.or.kr/guide/main.do?apiGrpCd=DS003) | 재무정보는 정기보고서의 XBRL 재무제표 기반이며, 대상 회사 범위가 명시됨 | 재무 수치의 데이터 원천과 제한 기록 |
 | [공시검색 API 개발가이드](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019001) | 기업·기간·공시 유형·정렬 조건으로 공시 목록을 검색하고 `rcept_no`를 받음 | 기간 조건 공시 목록과 원문 식별자 확인 |
+| [통계청 한국표준산업분류](https://kostat.go.kr/boardDownload.es?bid=108&list_no=422598&seq=3) | 금융 및 보험업은 대분류 K(64~66) | OpenDART 업종코드와 금융·비금융 판정 기준을 검증할 때 참고 |
 
 ## V1에 적용하는 기준
 
@@ -15,6 +17,7 @@ V1의 데이터 계약과 초기 OpenDART 조회 범위를 정할 때 확인한 
 - 연결 재무제표를 우선 사용하고, 없을 때만 별도 재무제표로 대체한 뒤 기준을 결과에 표시한다.
 - 기본 공시 근거는 사업보고서 원문 링크다. 기간 내 공시 목록은 사용자가 요청한 경우에만 최종 제출본(`last_reprt_at=Y`)으로 추가하며, V1은 목록의 중요도를 자동 판정하지 않는다.
 - API 키는 `.env`의 `OPENDART_API_KEY`에서만 읽는다. 문서·출력·Git에는 기록하지 않는다.
+- V1 대상은 비금융 상장기업이다. OpenDART `induty_code`와 한국표준산업분류의 실제 매핑·예외 처리는 데이터 계약 단계에서 검증하기 전까지 확정하지 않는다.
 
 ## V1 후속 단계의 초기 기술 레퍼런스
 
