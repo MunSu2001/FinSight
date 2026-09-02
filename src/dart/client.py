@@ -11,7 +11,6 @@ import zipfile
 
 CORP_CODE_URL = "https://opendart.fss.or.kr/api/corpCode.xml"
 FINANCIALS_URL = "https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json"
-DISCLOSURE_LIST_URL = "https://opendart.fss.or.kr/api/list.json"
 
 TARGET_ACCOUNTS = {
     "매출액": {
@@ -95,59 +94,6 @@ def fetch_financial_rows(
         )
 
     return response.get("list", [])
-
-
-def fetch_disclosure_rows(
-    corp_code: str,
-    start_date: str,
-    end_date: str,
-    api_key: str,
-    final_reports_only: bool = True,
-) -> list[dict[str, str]]:
-    """기간 내 공시 목록의 모든 페이지를 조회한다."""
-    params = {
-        "crtfc_key": api_key,
-        "corp_code": corp_code,
-        "bgn_de": start_date,
-        "end_de": end_date,
-        "last_reprt_at": "Y" if final_reports_only else "N",
-        "sort": "date",
-        "sort_mth": "desc",
-        "page_count": "100",
-    }
-    rows: list[dict[str, str]] = []
-    page_no = 1
-
-    while True:
-        response_bytes = _get_bytes(
-            DISCLOSURE_LIST_URL,
-            {**params, "page_no": str(page_no)},
-        )
-        response = json.loads(response_bytes.decode("utf-8"))
-
-        if response.get("status") != "000":
-            raise RuntimeError(
-                f"OpenDART 공시 목록 오류 [{response.get('status')}]: "
-                f"{response.get('message')}"
-            )
-
-        rows.extend(response.get("list", []))
-        total_page = int(response.get("total_page", 1))
-        if page_no >= total_page:
-            total_count = int(response.get("total_count", 0))
-            if len(rows) != total_count:
-                raise RuntimeError(
-                    f"OpenDART 공시 목록 수가 일치하지 않습니다: "
-                    f"{len(rows)} / {total_count}"
-                )
-            return rows
-
-        page_no += 1
-
-
-def build_filing_url(rcept_no: str) -> str:
-    """OpenDART 접수번호로 DART 공시 원문 URL을 만든다."""
-    return f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
 
 
 def _find_account(rows: list[dict[str, str]], target: dict[str, set[str]]) -> dict[str, str] | None:
