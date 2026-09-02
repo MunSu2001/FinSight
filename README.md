@@ -90,6 +90,8 @@ OpenDART는 공시 검색, 기업 고유번호, 공시 원본 파일 등 기업 
 
 학습 노트북의 역할은 [notebooks/learning/README.md](notebooks/learning/README.md)에서 확인할 수 있습니다. 통합 Agent, RAG, 시장 데이터, multi-agent workflow, API 서버와 대시보드는 아직 구현하지 않았습니다.
 
+제품 로드맵과 V1 요구사항·평가 계획은 [docs/ROADMAP.md](docs/ROADMAP.md)에서 확인할 수 있습니다.
+
 ## 시작하기
 
 1. [OpenDART](https://opendart.fss.or.kr/)에서 API 인증키를 발급받습니다.
