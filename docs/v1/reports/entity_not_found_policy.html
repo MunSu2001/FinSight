@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>기업 식별: NOT_FOUND cutoff 정책 비교</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font-family: system-ui, sans-serif; line-height: 1.65; }
+    h1, h2 { color: #111827; } table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    th, td { border: 1px solid #d1d5db; padding: 9px; text-align: left; vertical-align: top; } th { background: #f3f4f6; }
+    .conditional { color: #92400e; font-weight: 700; } .reject { color: #991b1b; font-weight: 700; }
+    .note { padding: 12px; border-left: 4px solid #d97706; background: #fffbeb; }
+  </style>
+</head>
+<body>
+  <h1>기업 식별: <code>NOT_FOUND</code> cutoff 정책 비교</h1>
+  <p>실행일: 2026-09-03 · 데이터: OpenDART 기업코드 목록 118,831건 · RapidFuzz 3.14.5</p>
+
+  <h2>1. 목적과 조건</h2>
+  <p>08번에서 채택한 “명확한 정확 일치만 자동 확정” 정책을 고정했다. 문자열 유사 후보의 최고점이 낮은 경우에도 무조건 사용자 확인을 요청할지, 75점 미만이면 <code>NOT_FOUND</code>로 처리할지를 비교했다.</p>
+  <p>75점은 이전 개발 사례에서 가상 입력의 70점과 한 글자 오타의 75점 사이에 둔 <strong>탐색용 후보</strong>다. 운영 기준으로 사전 확정한 값이 아니다.</p>
+
+  <h2>2. 비교 조건</h2>
+  <table>
+    <thead><tr><th>후보</th><th>정책</th></tr></thead>
+    <tbody>
+      <tr><td>A. cutoff 없음</td><td>정확 일치 하나만 자동 확정하고, 후보가 있으면 항상 <code>NEEDS_CONFIRMATION</code></td></tr>
+      <tr><td>B. cutoff 75점</td><td>동일한 확정 규칙을 적용하되, fuzzy 최고점이 75점 미만이면 <code>NOT_FOUND</code></td></tr>
+    </tbody>
+  </table>
+  <p>대상 존재 사례는 6개(공식명·오타·부분 표현·약칭·별칭), 대상 부재 사례는 현재 인덱스에 정확 일치하지 않는 synthetic no-match 4개다.</p>
+
+  <h2>3. 정량 결과</h2>
+  <table>
+    <thead><tr><th>정책</th><th>Not-found Recall</th><th>False Not-found Rate</th><th>Clarification Rate</th><th>p50 / p95</th></tr></thead>
+    <tbody>
+      <tr><td>A. cutoff 없음</td><td>0.000</td><td>0.000</td><td>0.800</td><td>26.76 / 27.63 ms</td></tr>
+      <tr><td>B. cutoff 75점</td><td>1.000</td><td>0.000</td><td>0.400</td><td>26.69 / 27.72 ms</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>A는 대상 부재 입력 4개 모두를 후보 확인으로 보냈다.</li>
+    <li>B는 네 입력 모두 최고점 38.7점으로 75점 미만이어서 <code>NOT_FOUND</code>로 처리했다.</li>
+    <li>B는 실제 대상 표현 6개를 <code>NOT_FOUND</code>로 잘못 처리하지 않았다. 특히 <code>삼성전쟈</code>는 75.0점이므로 경계값을 포함하는 확인 요청으로 남았다.</li>
+    <li>두 정책은 같은 후보 탐색을 실행하므로 지연시간 차이는 의미 있는 수준으로 관찰되지 않았다.</li>
+  </ul>
+
+  <h2>4. 해석</h2>
+  <table>
+    <thead><tr><th>관찰</th><th>의미</th></tr></thead>
+    <tbody>
+      <tr><td>가상 입력 최고점 38.7점</td><td>낮은 문자 형태 유사도 후보를 사용자에게 보여 주는 대신, 정식 법인명으로 다시 입력하도록 안내할 수 있다.</td></tr>
+      <tr><td>삼성전쟈 최고점 75.0점</td><td>한 글자 오타를 <code>NOT_FOUND</code>로 놓치지 않고 후보 확인으로 보냈다. 비교식이 <code>&lt; 75</code>임을 확인했다.</td></tr>
+      <tr><td>네이버 최고점 85.7점</td><td>잘못된 비상장 후보가 확인 목록에 남는다. cutoff는 한글 별칭 문제를 해결하지 못하며, 후보 생성·별칭 정책의 별도 문제다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. 결정</h2>
+  <table>
+    <thead><tr><th>후보</th><th>결정</th><th>근거와 조건</th></tr></thead>
+    <tbody>
+      <tr><td>A. cutoff 없음</td><td class="reject">미채택</td><td>대상 부재 사례를 하나도 <code>NOT_FOUND</code>로 구분하지 못해 Clarification Rate가 0.8이다. 안전하지만 불필요한 후보 확인을 많이 만든다.</td></tr>
+      <tr><td>B. cutoff 75점</td><td class="conditional">조건부 채택</td><td>개발 사례에서 Not-found Recall 1.0, False Not-found Rate 0.0, Clarification Rate 0.4를 보였다. 단, synthetic no-match 4개가 동일 문구의 끝 글자만 다른 변형이므로 운영 cutoff로 확정하지 않는다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. 한계와 다음 검증</h2>
+  <div class="note">
+    <ul>
+      <li>대상 부재 사례 4개는 독립적인 실제 사용자 입력이 아니다. 동일한 점수 38.7점만 관찰했으므로 cutoff 일반화 근거가 약하다.</li>
+      <li>대상 존재 6개도 개발용 소표본이다. 다양한 오타 길이, 약칭, 과거 상호, 영문/한글 표기와 실제 오입력 holdout이 필요하다.</li>
+      <li>정답이 후보에 없는 한글 별칭 문제는 cutoff로 해결되지 않는다. Candidate Recall@K와 별칭 후보를 따로 평가해야 한다.</li>
+      <li>따라서 75점은 holdout 평가 전까지 “후보 확인을 줄이기 위한 탐색 기준”으로만 유지한다.</li>
+    </ul>
+  </div>
+</body>
+</html>
