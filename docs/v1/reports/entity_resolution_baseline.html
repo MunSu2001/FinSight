@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>기업 식별 기준선 비교 결과</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font-family: system-ui, sans-serif; line-height: 1.65; }
+    h1, h2 { color: #111827; } h1 { border-bottom: 2px solid #2563eb; padding-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; } th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; } th { background: #eff6ff; }
+    code { background: #f3f4f6; padding: 2px 5px; border-radius: 4px; } .note { padding: 12px 16px; background: #fffbeb; border-left: 4px solid #f59e0b; }
+  </style>
+</head>
+<body>
+  <h1>기업 식별 기준선 비교 결과</h1>
+
+  <h2>목적</h2>
+  <p>사용자 기업명 표현을 OpenDART 상장 종목코드와 <code>corp_code</code> 후보로 연결할 때, 현재의 정확 법인명 일치 방식의 한계를 확인하고 정규화·제한된 별칭·상장 종목 우선 후보와 비교한다.</p>
+
+  <h2>비교 조건</h2>
+  <table>
+    <tr><th>항목</th><th>조건</th></tr>
+    <tr><td>데이터</td><td>실행 시점 OpenDART <code>corpCode.xml</code> ZIP</td></tr>
+    <tr><td>레코드 수</td><td>118,831건</td></tr>
+    <tr><td>초기 ZIP 다운로드·압축 해제·XML 파싱</td><td>2,542.7ms</td></tr>
+    <tr><td>양성 개발 사례</td><td>8건: 정확 법인명, 공백 변형, 대소문자 변형, 별칭, 동일 법인명</td></tr>
+    <tr><td>보류 사례</td><td>1건: 존재하지 않는 기업명</td></tr>
+    <tr><td>기준선 A</td><td><code>corp_name</code> 정확 일치 후 후보가 정확히 하나일 때만 선택</td></tr>
+    <tr><td>후보 B</td><td>공백·대소문자 정규화, <code>네이버 → NAVER</code> 별칭 1건, 상장 종목 후보가 하나일 때 선택</td></tr>
+    <tr><td>지연시간</td><td>ZIP 로드 이후 각 질의 warm-up 3회, 반복 20회 측정</td></tr>
+  </table>
+  <p>OpenDART 기업코드 목록은 정식 한글·영문 법인명, 상장 종목코드, 최종변경일을 제공한다. <a href="https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&amp;apiId=2019018">고유번호 API 개발가이드</a></p>
+
+  <h2>결과</h2>
+  <table>
+    <tr><th>지표</th><th>정확 일치 기준선 A</th><th>정규화·별칭·상장 우선 후보 B</th></tr>
+    <tr><td>Entity Accuracy</td><td>37.5%</td><td>100.0%</td></tr>
+    <tr><td>Candidate Recall</td><td>50.0%</td><td>100.0%</td></tr>
+    <tr><td>Coverage</td><td>37.5%</td><td>100.0%</td></tr>
+    <tr><td>Unsafe Selection Rate</td><td>0.0%</td><td>0.0%</td></tr>
+    <tr><td>보류 정확도</td><td>100.0%</td><td>100.0%</td></tr>
+    <tr><td>p50 질의 지연시간</td><td>5.12ms</td><td>207.14ms</td></tr>
+    <tr><td>p95 질의 지연시간</td><td>6.47ms</td><td>228.30ms</td></tr>
+  </table>
+
+  <h2>해석</h2>
+  <ul>
+    <li>기준선 A는 정확한 법인명 3건만 자동 선택했다. 공백·대소문자·별칭 입력은 후보를 찾지 못했고, <code>셀트리온</code>은 후보 목록에 정답 종목코드가 있었지만 동일 법인명 2건을 이유로 보류했다.</li>
+    <li>후보 B는 개발 사례에서 모든 정답을 후보에 포함하고 안전하게 선택했다. <code>SK 하이닉스</code>, <code>현대 자동차</code>, <code>naver</code>, <code>네이버</code>, <code>셀트리온</code>을 처리했다.</li>
+    <li>후보 B가 느린 이유는 매 질의마다 118,831개 레코드의 한글·영문 법인명을 파이썬에서 정규화·전수 탐색하기 때문이다. 모델 지연시간이나 OpenDART 네트워크 호출 시간은 아니다.</li>
+  </ul>
+
+  <h2>판단</h2>
+  <p>정확 일치 기준선 A는 실제 사용자 입력 변형을 처리하기에 부족하므로 최종 후보에서 제외한다. 후보 B는 다음 기업 식별 비교의 기준 후보로 유지한다.</p>
+  <p class="note">후보 B를 최종 채택하지는 않는다. 별칭 사전에 직접 추가한 <code>네이버 → NAVER</code>를 같은 개발 사례에서 평가했으므로, 별칭 일반화 성능을 증명하지 못한다.</p>
+
+  <h2>한계와 다음 검증</h2>
+  <ul>
+    <li>별칭 사전 작성에 쓰지 않은 holdout 사례가 없다.</li>
+    <li>존재하지 않는 기업 보류 사례가 1건뿐이다.</li>
+    <li>실제로 상장 후보가 여러 개인 입력에서 자동 보류하는지 확인하지 못했다.</li>
+    <li>V1 대상 상장 여부는 <code>stock_code</code>만으로 확정하지 않는다. 후속 단계에서 기업개황 API의 <code>corp_cls</code>가 Y/K/N인지 확인한다. <a href="https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&amp;apiId=2019002">기업개황 API 개발가이드</a></li>
+    <li>다음 비교에서는 정규화 인덱스를 한 번 생성하는 후보와 유사도 기반 후보 검색을 추가한다. 품질이 비열등한 경우 p50/p95 지연시간과 메모리 사용량으로 선택한다.</li>
+  </ul>
+</body>
+</html>

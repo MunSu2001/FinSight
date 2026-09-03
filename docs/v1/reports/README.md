@@ -4,12 +4,12 @@
 
 ## 보고서 작성 단위
 
-비교 대상 하나당 `NN_topic.md` 파일을 만든다. 예시는 다음과 같다.
+비교 대상 하나당 `NN_topic.html` 파일을 만든다. 예시는 다음과 같다.
 
-- `01_tool_selection.md`
-- `02_workflow_comparison.md`
-- `03_filing_rag_retrieval.md`
-- `04_e2e_workflow.md`
+- `01_tool_selection.html`
+- `02_workflow_comparison.html`
+- `03_filing_rag_retrieval.html`
+- `04_e2e_workflow.html`
 
 ## 각 보고서의 필수 내용
 
