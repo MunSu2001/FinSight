@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>기업 식별: 문자열 유사도 후보 생성 비교</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; font-family: system-ui, sans-serif; line-height: 1.65; color: #1f2937; }
+    h1, h2 { color: #111827; } table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { border: 1px solid #d1d5db; padding: 9px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; } .adopt { color: #166534; font-weight: 700; } .hold { color: #92400e; font-weight: 700; }
+    .reject { color: #991b1b; font-weight: 700; } .note { background: #f9fafb; border-left: 4px solid #6b7280; padding: 12px; }
+  </style>
+</head>
+<body>
+  <h1>기업 식별: 문자열 유사도 후보 생성 비교</h1>
+  <p>실행일: 2026-09-03 · 데이터: OpenDART 기업코드 목록 118,831건 · 라이브러리: RapidFuzz 3.14.5</p>
+
+  <h2>1. 목적과 가설</h2>
+  <p>정규화된 이름의 완전 일치 검색만으로는 오타나 일부만 입력한 기업명을 찾을 수 없다. 문자열 유사도 후보 생성을 추가하면 정답 기업이 상위 3개 후보에 포함되는 비율(Candidate Recall@3)이 높아질 것이라는 가설을 확인했다.</p>
+  <p>이 실험은 <strong>후보 생성</strong>만 평가한다. 유사도 점수로 기업을 자동 확정하거나 OpenDART API를 호출하지 않는다.</p>
+
+  <h2>2. 비교 조건</h2>
+  <table>
+    <thead><tr><th>후보</th><th>처리 방식</th><th>측정</th></tr></thead>
+    <tbody>
+      <tr><td>A. 정규화 인덱스만</td><td>공백·기호를 제거하고 영문을 대문자로 바꾼 뒤, 정확히 같은 키만 조회</td><td>Candidate Recall@1/@3, p50/p95 지연시간</td></tr>
+      <tr><td>B. 정규화 인덱스 + 문자열 유사도</td><td>정확 일치가 없을 때 RapidFuzz <code>ratio</code>로 이름 키 상위 20개를 탐색하고 기업 후보 3개 반환</td><td>동일</td></tr>
+    </tbody>
+  </table>
+  <p>긍정 사례 8개(정확명, 오타, 부분 표현, 영문 표기, 한글 별칭, 약칭)와 존재하지 않는 기업 1개를 사용했다. 별칭 사전은 비워 두었다.</p>
+
+  <h2>3. 정량 결과</h2>
+  <table>
+    <thead><tr><th>전략</th><th>Candidate Recall@1</th><th>Candidate Recall@3</th><th>p50 지연시간</th><th>p95 지연시간</th></tr></thead>
+    <tbody>
+      <tr><td>A. 정규화 인덱스만</td><td>0.250</td><td>0.250</td><td>0.0033 ms</td><td>0.0061 ms</td></tr>
+      <tr><td>B. 정규화 인덱스 + 문자열 유사도</td><td>0.625</td><td>0.750</td><td>26.1142 ms</td><td>27.5321 ms</td></tr>
+    </tbody>
+  </table>
+  <p>B는 A보다 Recall@1을 0.375, Recall@3을 0.500 높였다. 다만 전체 기업명 키 218,777개를 문자열 비교하므로 지연시간은 약 26 ms 늘었다. 이 수치는 노트북 프로세스 안에서 10회 반복한 마이크로벤치마크이며, 최종 서비스 전체 지연시간을 뜻하지 않는다.</p>
+
+  <h2>4. 사례 해석</h2>
+  <table>
+    <thead><tr><th>입력</th><th>B의 결과</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td>삼성전쟈</td><td>삼성전자 1위, 75.0점</td><td>한 글자 오타는 후보 생성에 성공했다. 단, 삼성전기도 같은 75.0점이므로 점수만으로 자동 확정하면 안 된다.</td></tr>
+      <tr><td>SK하이닉수</td><td>SK하이닉스 1위, 83.3점</td><td>한 글자 오타는 1위 후보로 복구됐다.</td></tr>
+      <tr><td>하이닉스</td><td>SK하이닉스 3위, 80.0점</td><td>부분 표현은 상위 3개에는 포함됐지만 1위가 아니다. 후보 제시에는 쓸 수 있으나 자동 선택은 위험하다.</td></tr>
+      <tr><td>현대자동</td><td>현대자동차 1위, 88.9점</td><td>뒤가 잘린 표현은 1위 후보로 복구됐다.</td></tr>
+      <tr><td>네이버</td><td>굿네이버·네이버핸즈·네이버제트</td><td>NAVER와 한글 표기가 달라 정답이 상위 3개에 없다. 검증된 별칭이 필요한 사례다.</td></tr>
+      <tr><td>삼전</td><td>동명 비상장 법인 2건의 정확 일치</td><td>비상장 동명 법인이 정확 일치를 선점하여 유사도 fallback이 실행되지 않았다. 상장기업 우선 후보 필터링 규칙을 다음 설계에서 별도로 검증해야 한다.</td></tr>
+      <tr><td>FinSight가상기업</td><td>유사한 이름의 비상장 후보 반환</td><td>존재하지 않는 입력에도 후보가 생긴다. 점수 임계값·후보 간 점수 차이·사용자 확인 없이는 자동 확정하면 안 된다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. 결정</h2>
+  <table>
+    <thead><tr><th>후보</th><th>결정</th><th>이유와 조건</th></tr></thead>
+    <tbody>
+      <tr><td>A. 정규화 인덱스만</td><td class="reject">미채택</td><td>매우 빠르지만 긍정 사례의 25%만 상위 3개에 정답을 포함했다. 정확한 공식명·영문 대소문자 차이 처리에는 유지하되, 단독 후보 생성 전략으로는 부족하다.</td></tr>
+      <tr><td>B. 정규화 인덱스 + 문자열 유사도</td><td class="hold">조건부 채택</td><td>오타·부분 표현에서 Recall@3이 0.750으로 개선됐다. 단, 후보 생성 용도로만 사용한다. 한글/영문 별칭과 약칭을 해결하지 못하고 거짓 후보도 반환하므로 자동 기업 확정에는 미채택이다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. 한계와 다음 검증 필요사항</h2>
+  <div class="note">
+    <ul>
+      <li>긍정 사례가 8개인 개발용 소표본이므로 일반화된 성능 수치가 아니다.</li>
+      <li>별칭 사전, 상장기업 필터, 점수 임계값, 후보 간 점수 차이 정책은 아직 비교하지 않았다.</li>
+      <li>따라서 현재 확정된 것은 “문자열 유사도를 후보 생성에 쓸 가치가 있다”는 점뿐이다.</li>
+    </ul>
+  </div>
+  <p>참고: <a href="https://rapidfuzz.github.io/RapidFuzz/Usage/process.html">RapidFuzz process 공식 문서</a></p>
+</body>
+</html>

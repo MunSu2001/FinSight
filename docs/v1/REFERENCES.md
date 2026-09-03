@@ -10,6 +10,7 @@ V1의 데이터 계약과 초기 OpenDART 조회 범위를 정할 때 확인한 
 | [정기보고서 재무정보 API 목록](https://opendart.fss.or.kr/guide/main.do?apiGrpCd=DS003) | 재무정보는 정기보고서의 XBRL 재무제표 기반이며, 대상 회사 범위가 명시됨 | 재무 수치의 데이터 원천과 제한 기록 |
 | [공시검색 API 개발가이드](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019001) | 기업·기간·공시 유형·정렬 조건으로 공시 목록을 검색하고 `rcept_no`를 받음 | 기간 조건 공시 목록과 원문 식별자 확인 |
 | [통계청 한국표준산업분류](https://kostat.go.kr/boardDownload.es?bid=108&list_no=422598&seq=3) | 금융 및 보험업은 대분류 K(64~66) | OpenDART 업종코드와 금융·비금융 판정 기준을 검증할 때 참고 |
+| [RapidFuzz `process` 공식 문서](https://rapidfuzz.github.io/RapidFuzz/Usage/process.html) | `extract`는 문자열 후보 목록에서 유사도 순 상위 결과를 반환하며, scorer·후보 수·점수 cutoff를 설정할 수 있음 | 기업명 오타·부분 표현의 후보 생성 방식과 Candidate Recall@K 비교 |
 
 ## V1에 적용하는 기준
 
