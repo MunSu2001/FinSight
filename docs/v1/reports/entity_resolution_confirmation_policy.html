@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>기업 식별: 자동 선택과 사용자 확인 정책 비교</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font-family: system-ui, sans-serif; line-height: 1.65; }
+    h1, h2 { color: #111827; } table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    th, td { border: 1px solid #d1d5db; padding: 9px; text-align: left; vertical-align: top; } th { background: #f3f4f6; }
+    .adopt { color: #166534; font-weight: 700; } .reject { color: #991b1b; font-weight: 700; }
+    .note { padding: 12px; border-left: 4px solid #d97706; background: #fffbeb; }
+  </style>
+</head>
+<body>
+  <h1>기업 식별: 자동 선택과 사용자 확인 정책 비교</h1>
+  <p>실행일: 2026-09-03 · 데이터: OpenDART 기업코드 목록 118,831건 · RapidFuzz 3.14.5</p>
+
+  <h2>1. 목적</h2>
+  <p>상장·비상장 OpenDART 기업을 모두 후보로 유지할 때, 유사하거나 중복된 기업명에서 최상위 후보를 자동 선택하는 정책이 안전한지 확인했다. 후보 목록은 OpenDART의 공식 법인명·<code>corp_code</code>·상장 상태·종목코드로 만들며, LLM은 사용하지 않았다.</p>
+
+  <h2>2. 비교 조건</h2>
+  <table>
+    <thead><tr><th>후보</th><th>확정 규칙</th></tr></thead>
+    <tbody>
+      <tr><td>A. 최상위 후보 자동 선택</td><td>후보가 하나 이상이면 1위 기업을 즉시 <code>RESOLVED</code> 처리</td></tr>
+      <tr><td>B. 명확한 정확 일치만 확정</td><td>정규화 정확 일치 후보가 하나일 때만 <code>RESOLVED</code>; 복수 후보 또는 문자열 유사 후보는 <code>NEEDS_CONFIRMATION</code> 처리</td></tr>
+    </tbody>
+  </table>
+  <p>개발 사례는 정확명 2개, 오타·부분 표현·약칭·별칭·존재하지 않는 이름 5개다. 자동 확정이 적절하지 않은 5개 사례는 “자동 선택하지 않음”이 정답이다.</p>
+
+  <h2>3. 정량 결과</h2>
+  <table>
+    <thead><tr><th>정책</th><th>Auto-resolution Success Rate</th><th>Coverage</th><th>Unsafe Selection Rate</th><th>Abstention Accuracy</th><th>Clarification Rate</th><th>p50 / p95</th></tr></thead>
+    <tbody>
+      <tr><td>A. 최상위 후보 자동 선택</td><td>0.600</td><td>1.000</td><td>0.571</td><td>0.000</td><td>0.000</td><td>25.56 / 27.60 ms</td></tr>
+      <tr><td>B. 명확한 정확 일치만 확정</td><td>0.400</td><td>0.400</td><td>0.000</td><td>1.000</td><td>0.714</td><td>25.39 / 27.03 ms</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>A는 정답 기업이 있는 5개 사례 중 3개를 자동으로 맞췄지만, 전체 7개 입력에서 4개를 잘못 자동 선택했다.</li>
+    <li>B는 정확명 2개만 자동 확정했다. 나머지 5개를 보류해 자동 오선택은 없었지만, 71.4%의 입력에서 사용자 확인이 필요했다.</li>
+    <li>두 정책은 같은 후보 생성기를 사용하므로 지연시간 차이는 의미 있는 수준으로 관찰되지 않았다.</li>
+  </ul>
+
+  <h2>4. 실패 사례 해석</h2>
+  <table>
+    <thead><tr><th>입력</th><th>A의 문제</th><th>B의 처리</th></tr></thead>
+    <tbody>
+      <tr><td>하이닉스</td><td>1위인 이닉스(452400)를 자동 선택했다. 의도한 SK하이닉스(000660)는 3위다.</td><td>후보 3개를 보여 주고 확인 요청</td></tr>
+      <tr><td>삼전</td><td>동명 비상장 법인 2개 중 하나를 임의 선택했다.</td><td>두 비상장 후보를 보여 주고 확인 요청</td></tr>
+      <tr><td>네이버</td><td>굿네이버를 자동 선택했다.</td><td>후보 확인 요청. 그러나 NAVER가 후보 3개에 없으므로 올바른 별칭·후보 생성 개선이 추가로 필요하다.</td></tr>
+      <tr><td>FinSight가상기업</td><td>존재하지 않는 기업인데 유사한 비상장 법인을 자동 선택했다.</td><td>후보 확인 요청. 이후 점수 cutoff를 비교해 <code>NOT_FOUND</code>로 보류하는 정책을 검증해야 한다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. 결정</h2>
+  <table>
+    <thead><tr><th>후보</th><th>결정</th><th>근거와 조건</th></tr></thead>
+    <tbody>
+      <tr><td>A. 최상위 후보 자동 선택</td><td class="reject">미채택</td><td>Coverage는 1.0이지만 Unsafe Selection Rate가 0.571이다. 기업·재무 데이터를 잘못 조회할 위험이 너무 커서 V1 기본 정책으로 사용할 수 없다.</td></tr>
+      <tr><td>B. 명확한 정확 일치만 확정</td><td class="adopt">채택</td><td>자동 오선택이 0이고, 보류가 필요한 사례 5개를 모두 보류했다. 단, 사용자 확인 화면에는 “해당 후보 없음 / 정식명으로 다시 입력” 선택지를 제공해야 하며, 후보 생성 품질·NOT_FOUND 점수 기준은 후속 평가로 남는다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. 한계와 다음 검증</h2>
+  <div class="note">
+    <ul>
+      <li>사례가 7개인 개발용 소표본이므로 일반화된 운영 성능이 아니다.</li>
+      <li>사용자가 후보 중 하나를 선택한 뒤의 최종 Entity Accuracy는 아직 측정하지 않았다.</li>
+      <li>별칭·약칭, 점수 cutoff, 후보 간 점수 차이, 존재하지 않는 기업의 <code>NOT_FOUND</code> 판단은 별도 A/B 비교가 필요하다.</li>
+      <li>비상장 기업의 재무·사업보고서 데이터 가용성은 아직 검증하지 않았다.</li>
+    </ul>
+  </div>
+</body>
+</html>
