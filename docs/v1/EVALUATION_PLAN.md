@@ -30,7 +30,7 @@ V1 평가는 LLM 답변의 자연스러움만 보지 않는다. FinSight가 질�
 ### 사례별 정답 정보
 
 - 질문 원문
-- 정답 기업명·`corp_code`·상장/비금융 판정
+- 정답 기업명·`corp_code`·상장 상태·비금융 판정·요청 데이터 가용성
 - 정답 사업연도·결산일·다기업 공통 연도
 - 기대 Tool 집합과 인자
 - 정답 원천 수치·재무제표 기준·계산 결과
@@ -49,7 +49,7 @@ V1 평가는 LLM 답변의 자연스러움만 보지 않는다. FinSight가 질�
 
 | 대상 | 설계 또는 비교 대상 | 핵심 지표 |
 |---|---|---|
-| 기업 식별·대상 판정 | 기업명 해석, `corp_code`, 상장·비금융 판정 | Entity Accuracy, 대상 판정 Precision/Recall |
+| 기업 식별·대상 판정 | 기업명 해석, `corp_code`, 복수 후보 확인, 상장 상태·비금융·데이터 가용성 판정 | Entity Accuracy, Candidate Recall@K, Unsafe Selection Rate, Abstention Accuracy |
 | 기간 Resolver | 명시 연도, 최근 N년, 다기업 공통 사업연도 정책 | Period Exact Match, Common-Year Validity, Limitation Accuracy |
 | 재무 데이터 계약 | 계정 매핑, CFS 우선/OFS 대체, 단위·결측 처리 | Field Accuracy, Statement-Basis Accuracy, Missing-data Handling Accuracy |
 | 계산 | 공식·단위·위험 계산 처리 | Calculation Accuracy, Unsafe-calculation Rate |
@@ -66,7 +66,7 @@ V1 평가는 LLM 답변의 자연스러움만 보지 않는다. FinSight가 질�
 
 ### 5.1 데이터 계약과 계산
 
-이 단계는 후보 선택보다 정답 기반을 검증하는 단계다. 여러 비금융 업종·기업·연도에서 계정 매핑, CFS/OFS 대체, 단위, 결측과 계산 예외를 확인한다. 이 기반이 불안정하면 이후 Router·RAG·workflow 점수는 해석하지 않는다.
+이 단계는 후보 선택보다 정답 기반을 검증하는 단계다. 상장·비상장 비금융 기업과 여러 업종·연도에서 계정 매핑, CFS/OFS 대체, 단위, 결측과 계산 예외를 확인한다. 비상장 기업의 요청 재무·사업보고서 데이터 부재는 별도 정답 상태로 기록한다. 이 기반이 불안정하면 이후 Router·RAG·workflow 점수는 해석하지 않는다.
 
 ### 5.2 Router·Tool·기간 해석
 
