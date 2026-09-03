@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>기업 식별 인덱스 성능 비교 결과</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font-family: system-ui, sans-serif; line-height: 1.65; }
+    h1, h2 { color: #111827; } h1 { border-bottom: 2px solid #2563eb; padding-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; } th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; } th { background: #eff6ff; }
+    code { background: #f3f4f6; padding: 2px 5px; border-radius: 4px; } .decision { padding: 12px 16px; background: #ecfdf5; border-left: 4px solid #10b981; }
+  </style>
+</head>
+<body>
+  <h1>기업 식별 인덱스 성능 비교 결과</h1>
+
+  <h2>목적</h2>
+  <p>정규화·별칭·상장 종목 우선이라는 동일한 기업 식별 규칙에서, 질의마다 기업코드 전체를 전수 탐색하는 방식과 시작 시 이름 인덱스를 생성하는 방식의 품질·지연시간·메모리 비용을 비교한다.</p>
+
+  <h2>비교 조건</h2>
+  <table>
+    <tr><th>항목</th><th>조건</th></tr>
+    <tr><td>데이터</td><td>실행 시점 OpenDART <code>corpCode.xml</code> ZIP</td></tr>
+    <tr><td>기업코드 레코드 수</td><td>118,831건</td></tr>
+    <tr><td>비교 사례</td><td>8개 양성 개발 사례와 1개 존재하지 않는 기업 보류 사례</td></tr>
+    <tr><td>방식 A</td><td>매 질의마다 한글·영문 법인명을 정규화하며 전수 탐색</td></tr>
+    <tr><td>방식 B</td><td>한글·영문 정규화 이름 인덱스를 시작 시 한 번 생성 후 조회</td></tr>
+    <tr><td>지연시간</td><td>각 질의 warm-up 3회 후 30회 반복, ZIP/XML/인덱스 생성 시간 제외</td></tr>
+  </table>
+
+  <h2>인덱스 시작 비용</h2>
+  <table>
+    <tr><th>항목</th><th>결과</th></tr>
+    <tr><td>정규화 이름 키 수</td><td>218,777개</td></tr>
+    <tr><td>인덱스 생성 시간</td><td>772.7ms</td></tr>
+    <tr><td>별도 인덱스 생성 중 Python 할당 peak</td><td>84.83MiB</td></tr>
+  </table>
+  <p>키 수가 기업 수보다 많은 것은 기업마다 한글 법인명과 영문 법인명 등 여러 이름 키를 인덱스에 넣기 때문이다. Python 할당 peak는 전체 프로세스 RAM이나 지속 메모리 사용량과 같지 않다.</p>
+
+  <h2>결과</h2>
+  <table>
+    <tr><th>지표</th><th>정규화 전수 탐색 A</th><th>정규화 인덱스 탐색 B</th></tr>
+    <tr><td>후보 <code>corp_code</code> 목록과 선택 <code>corp_code</code></td><td colspan="2">모든 사례에서 동일</td></tr>
+    <tr><td>Entity Accuracy</td><td>100.0%</td><td>100.0%</td></tr>
+    <tr><td>Candidate Recall</td><td>100.0%</td><td>100.0%</td></tr>
+    <tr><td>Coverage</td><td>100.0%</td><td>100.0%</td></tr>
+    <tr><td>Unsafe Selection Rate</td><td>0.0%</td><td>0.0%</td></tr>
+    <tr><td>보류 정확도</td><td>100.0%</td><td>100.0%</td></tr>
+    <tr><td>p50 질의 지연시간</td><td>207.46ms</td><td>0.0013ms</td></tr>
+    <tr><td>p95 질의 지연시간</td><td>212.04ms</td><td>0.0016ms</td></tr>
+  </table>
+
+  <h2>해석</h2>
+  <ul>
+    <li>두 방식은 후보 개수뿐 아니라 후보 <code>corp_code</code> 전체와 최종 선택 <code>corp_code</code>까지 동일했다. 인덱스는 검색 규칙을 바꾼 것이 아니라, 같은 검색 결과를 미리 정리해 둔 것이다.</li>
+    <li>인덱스 탐색의 질의 지연시간은 이 microbenchmark에서 전수 탐색보다 약 160,000배 낮았다. 다만 이는 기업 식별 함수만 측정한 값이며, 실제 사용자 요청 전체 시간이나 OpenDART API·LLM 시간의 개선 배율은 아니다.</li>
+    <li>인덱스는 시작할 때 약 0.77초와 Python 할당 peak 약 84.83MiB를 추가로 사용한다. 전수 탐색 대비 한 질의당 약 207ms를 아끼므로, 약 4회 이상의 질의를 처리하면 이 시작 비용을 시간 관점에서 회수한다.</li>
+  </ul>
+
+  <h2>판단</h2>
+  <p class="decision">동일한 정규화·별칭 규칙을 유지하는 기업 식별 실행 방식으로는 <strong>정규화 인덱스 탐색</strong>을 채택한다. 품질 저하 없이 질의 지연시간이 명확히 낮기 때문이다.</p>
+
+  <h2>한계와 다음 검증</h2>
+  <ul>
+    <li>이 선택은 검색 실행 방식에 한정된다. 별칭·오타·약칭을 얼마나 잘 처리하는지는 아직 확정하지 않았다.</li>
+    <li>개발 사례에 직접 추가한 <code>네이버 → NAVER</code> 별칭이 포함돼 있어 일반화 성능을 증명하지 못한다.</li>
+    <li>실제 복수 상장 후보, 과거 사명, 오타, holdout 사례가 필요하다.</li>
+    <li>인덱스의 실제 지속 RAM과 애플리케이션 cold start는 통합 구현 또는 운영 벤치마크에서 별도 측정한다.</li>
+  </ul>
+</body>
+</html>
