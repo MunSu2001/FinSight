@@ -29,6 +29,8 @@
 | Clarification Rate | 전체 입력 중 후보 목록을 제시하고 사용자 확인을 요청한 입력의 비율 | 20개 질문 중 5개에서 재질문하면 0.25 | 높으면 자동 오선택은 줄지만 대화 왕복은 늘어남 | 안전한 보류가 필요한 사례와 단순 성공 사례를 분리해 함께 해석 |
 | Not-found Recall | 실제로 대상 기업이 없는 입력 중 `NOT_FOUND`로 처리한 수 / 대상 기업이 없는 전체 입력 수 | 실제 없는 입력 4개 중 3개를 `NOT_FOUND`로 보내면 0.75 | 높을수록 무관한 후보를 불필요하게 제시하지 않음 | 현재 기업코드 목록 기준의 synthetic no-match와 실제 사용자 입력을 구분해 기록 |
 | False Not-found Rate | 실제 대상 기업이 있는 입력을 `NOT_FOUND`로 처리한 수 / 실제 대상 기업이 있는 전체 입력 수 | 실제 기업 표현 10개 중 1개를 못 찾았다고 하면 0.1 | 낮을수록 유효한 기업·별칭·오타를 놓치지 않음 | Candidate Recall@K와 함께 봐야 원인을 후보 생성과 cutoff 정책으로 분리할 수 있음 |
+| Fuzzy-path False Not-found Rate | exact·별칭·오타 정정 경로를 타지 않고 fuzzy 후보만 사용하는 유효 입력을 `NOT_FOUND`로 처리한 수 / 해당 유효 입력 수 | fuzzy 유효 입력 4개 중 1개를 cutoff로 차단하면 0.25 | 낮을수록 cutoff가 아직 지원해야 할 미등록 오타·표현을 놓치지 않음 | 전체 False Not-found Rate는 exact·별칭 경로가 분모에 섞여 cutoff의 위험을 작게 보일 수 있으므로, cutoff 평가에서는 이 지표를 함께 기록한다. |
+| Policy Preservation Accuracy | cutoff와 무관하게 처리해야 하는 exact·명시적 해석·포괄 표현 입력에서 기대 상태와 실제 상태가 완전히 같은 수 / 보호 입력 수 | exact 2건·해석 3건·재질문 2건 중 6건의 상태가 기대값과 같으면 6/7 | 높을수록 cutoff가 기존 확정·해석·보류 정책을 침범하지 않음 | 단순히 `NOT_FOUND`가 아니라고 성공으로 보지 않는다. `RESOLVED`, `RESOLVED_INTERPRETED`, `NEEDS_CONFIRMATION`을 구분한다. |
 
 현재 `05_entity_resolution_baseline.ipynb`의 개발 결과는 별칭 규칙을 만든 사례를 다시 평가하므로 최종 성능이 아니다. 최종 비교 전에는 별칭 사전 작성에 쓰지 않은 holdout 사례가 필요하다.
 
