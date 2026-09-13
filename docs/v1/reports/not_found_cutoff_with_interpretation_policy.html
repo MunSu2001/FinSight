@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>출처 기반 해석 정책의 NOT_FOUND cutoff 비교</title>
+  <style>
+    body { max-width: 980px; margin: 40px auto; padding: 0 20px; color: #1f2937; font: 16px/1.65 system-ui, sans-serif; }
+    h1, h2 { color: #111827; } code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; } th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f9fafb; } .adopt { color: #166534; font-weight: 700; } .hold { color: #92400e; font-weight: 700; } .reject { color: #991b1b; font-weight: 700; } .note { padding: 14px; background: #eff6ff; border-left: 4px solid #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>V1 기업 식별: C 정책 기반 <code>NOT_FOUND</code> cutoff 비교</h1>
+  <p>실행일: 2026-09-14. OpenDART 기업코드 레코드 119,183개와 정규화 이름 키 219,425개를 사용했다.</p>
+
+  <h2>목적</h2>
+  <p>11번에서 조건부 채택한 C 정책을 고정한 뒤, exact·명시적 해석·포괄 표현에 해당하지 않는 fuzzy 후보를 언제 <code>NOT_FOUND</code>로 처리할지 비교한다.</p>
+
+  <h2>C 정책에서 cutoff가 적용되는 위치</h2>
+  <pre>동명·포괄 표현 → NEEDS_CONFIRMATION
+명시적 별칭·오타 정정 → RESOLVED_INTERPRETED
+고유 exact → RESOLVED
+그 외 fuzzy 후보 → cutoff 비교 → NOT_FOUND 또는 NEEDS_CONFIRMATION</pre>
+  <p>따라서 <code>삼성전쟈</code>, <code>하닉</code>, <code>삼전</code> 같은 보호 입력은 cutoff와 무관하게 기존 상태를 유지해야 한다.</p>
+
+  <h2>평가 구성</h2>
+  <ul>
+    <li>보호 입력 11개: exact 1개, 명시적 해석 6개, 포괄·동명 재질문 4개</li>
+    <li>미등록 fuzzy 유효 오타 4개: <code>삼성전저</code>, <code>카카오오</code>, <code>현대자동챠</code>, <code>POSCO홀딩수</code></li>
+    <li>현재 OpenDART 이름 인덱스에 exact가 없는 synthetic no-match 6개</li>
+  </ul>
+
+  <h2>정량 결과</h2>
+  <table>
+    <thead><tr><th>cutoff</th><th>Not-found Recall</th><th>Fuzzy-path False Not-found Rate</th><th>Policy Preservation Accuracy</th><th>Clarification Rate</th><th>p50 / p95</th></tr></thead>
+    <tbody>
+      <tr><td>없음</td><td>0.000 (0/6)</td><td>0.000 (0/4)</td><td>1.000</td><td>0.667 (14/21)</td><td>0.006 / 27.07 ms</td></tr>
+      <tr><td>60</td><td>0.500 (3/6)</td><td>0.000 (0/4)</td><td>1.000</td><td>0.524 (11/21)</td><td>0.001 / 27.37 ms</td></tr>
+      <tr><td>70</td><td>0.667 (4/6)</td><td>0.000 (0/4)</td><td>1.000</td><td>0.476 (10/21)</td><td>0.001 / 27.11 ms</td></tr>
+      <tr><td>75</td><td>0.667 (4/6)</td><td>0.000 (0/4)</td><td>1.000</td><td>0.476 (10/21)</td><td>0.001 / 27.70 ms</td></tr>
+      <tr><td>80</td><td>0.833 (5/6)</td><td>0.250 (1/4)</td><td>1.000</td><td>0.381 (8/21)</td><td>0.001 / 27.35 ms</td></tr>
+      <tr><td>85</td><td>1.000 (6/6)</td><td>0.500 (2/4)</td><td>1.000</td><td>0.286 (6/21)</td><td>0.001 / 27.06 ms</td></tr>
+    </tbody>
+  </table>
+
+  <h2>사례별 해석</h2>
+  <table>
+    <thead><tr><th>입력</th><th>최고 fuzzy 점수</th><th>cutoff 영향</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td><code>삼성전쟈</code>, <code>하닉</code></td><td>해석 경로</td><td>모든 cutoff에서 동일하게 RESOLVED_INTERPRETED</td><td>명시적 오타·별칭 정정은 cutoff를 올바르게 우회했다.</td></tr>
+      <tr><td><code>삼전</code></td><td>포괄·동명 경로</td><td>모든 cutoff에서 NEEDS_CONFIRMATION</td><td>동명 법인과 삼성전자 가능성이 공존하므로 재질문이 유지됐다.</td></tr>
+      <tr><td><code>삼성전저</code></td><td>75.0</td><td>80 이상에서 NOT_FOUND</td><td>미등록이지만 유효한 오타를 80·85가 차단했다.</td></tr>
+      <tr><td><code>현대자동챠</code></td><td>80.0</td><td>85에서 NOT_FOUND</td><td>높은 cutoff는 유효한 오타도 차단할 수 있다.</td></tr>
+      <tr><td><code>삼성전자파트너스</code></td><td>75.0</td><td>80 이상에서 NOT_FOUND</td><td>회사명처럼 보이지만 현재 exact 법인명이 아닌 입력이다. 70·75에서는 확인 요청으로 유지된다.</td></tr>
+      <tr><td><code>SK하이닉스솔루션</code></td><td>80.0</td><td>85에서 NOT_FOUND</td><td>문자열 점수는 기업 존재 확률이 아니다. 높은 점수의 no-match도 있다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>채택 판단</h2>
+  <table>
+    <thead><tr><th>후보</th><th>판정</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>cutoff 없음</td><td class="reject">미채택</td><td>대상 부재 6건을 하나도 NOT_FOUND로 구분하지 못해 불필요한 재질문이 가장 많다.</td></tr>
+      <tr><td>60</td><td class="reject">미채택</td><td>유효 오타를 차단하지는 않았지만 70·75보다 NOT_FOUND 재현율이 낮고 재질문이 많다.</td></tr>
+      <tr><td>70–75</td><td class="hold">조건부 채택 범위</td><td>대상 부재 4/6을 구분하면서 fuzzy 유효 오타 4/4를 보존했다. 현재 사례에서는 두 값이 완전히 같아 단일 운영값을 구분할 근거는 없다.</td></tr>
+      <tr><td>80</td><td class="reject">미채택</td><td>Not-found Recall은 높아지지만 <code>삼성전저</code>를 NOT_FOUND로 잘못 처리했다.</td></tr>
+      <tr><td>85</td><td class="reject">미채택</td><td>fuzzy 유효 오타 4개 중 2개를 잘못 차단했다.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><strong>결론:</strong> 현재 근거는 cutoff 70–75 범위를 지지한다. 그러나 두 값 사이의 점수 사례가 없어 어느 하나를 최종 운영값으로 확정할 수는 없다. 초기 통합 구현 전 또는 운영 로그가 쌓인 뒤 추가 입력으로 재평가해야 한다.</div>
+
+  <h2>한계</h2>
+  <p>대상 부재 6개는 OpenDART 이름 인덱스에 exact가 없는 synthetic no-match이며, 실제 사용자 오입력 전체를 대표하지 않는다. 또한 fuzzy 유효 오타 4개는 개발용 수동 사례다. 이번 결과는 초기 cutoff 후보 범위를 좁히는 근거이지, 모든 기업명 표현에 대한 보장이나 최종 운영 threshold의 확정 근거는 아니다.</p>
+</body>
+</html>
