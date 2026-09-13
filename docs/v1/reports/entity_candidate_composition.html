@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>기업 식별 후보 구성 비교</title>
+  <style>
+    body { max-width: 980px; margin: 40px auto; padding: 0 20px; color: #1f2937; font: 16px/1.65 system-ui, sans-serif; }
+    h1, h2 { color: #111827; } code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; } th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f9fafb; } .adopt { color: #166534; font-weight: 700; } .hold { color: #92400e; font-weight: 700; } .reject { color: #991b1b; font-weight: 700; }
+    .note { padding: 14px; background: #eff6ff; border-left: 4px solid #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>V1 기업 식별: 후보 구성 비교</h1>
+  <p>실행일: 2026-09-14. OpenDART 기업코드 목록 조회 시각: <code>2026-09-14T00:52:55+09:00</code>. 전체 법인 레코드 119,183개, 정규화 이름 키 219,425개를 사용했다.</p>
+
+  <h2>목적</h2>
+  <p>약칭·한글/영문 표기·오타 때문에 사용자가 의도한 기업이 후보에서 누락되는지 확인한다. 이 평가는 후보 생성 단계만 다룬다. 후보가 여러 개일 때 자동으로 하나를 선택하는 정책은 08번에서 채택한 사용자 확인 정책을 그대로 유지한다.</p>
+
+  <h2>평가 구성</h2>
+  <ul>
+    <li>대표 상장기업 12개, 사용자 입력 29개</li>
+    <li>단일 의도 입력 26개: 정식명, 띄어쓰기, 약칭, 한글/영문 표기, 한 글자 오타</li>
+    <li>의도적 모호 입력 3개: <code>엘지</code>, <code>현대</code>, <code>삼성</code></li>
+    <li>후보는 OpenDART 기업코드 목록의 법인명·<code>corp_code</code>·종목코드로만 구성</li>
+  </ul>
+
+  <table>
+    <thead><tr><th>후보</th><th>방식</th></tr></thead>
+    <tbody>
+      <tr><td>A. 현재 exact-first</td><td>정규화 정확 일치가 있으면 그것만 반환하고, 없을 때만 문자열 유사 후보를 반환</td></tr>
+      <tr><td>B. exact + fuzzy 통합</td><td>정확 일치와 문자열 유사 후보를 함께 반환하고 <code>corp_code</code> 기준 중복 제거</td></tr>
+      <tr><td>C. B + 개발용 별칭</td><td>B에 <code>삼전</code>·<code>하닉</code> 등의 개발용 별칭 후보를 추가</td></tr>
+    </tbody>
+  </table>
+
+  <h2>정량 결과</h2>
+  <table>
+    <thead><tr><th>방식</th><th>Candidate Recall</th><th>Ambiguous Candidate Recall</th><th>평균 후보 수</th><th>후보 수 중앙값</th><th>p50 / p95 지연시간</th></tr></thead>
+    <tbody>
+      <tr><td>A</td><td>0.769 (20/26)</td><td>0.000</td><td>2.93</td><td>2</td><td>0.003 / 27.43 ms</td></tr>
+      <tr><td>B</td><td>0.808 (21/26)</td><td>0.000</td><td>5.00</td><td>5</td><td>26.16 / 27.08 ms</td></tr>
+      <tr><td>C</td><td>0.962 (25/26)</td><td>1.000</td><td>5.38</td><td>5</td><td>26.24 / 29.07 ms</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>지연시간 해석:</strong> A의 p50이 매우 낮은 것은 정확 일치 입력에서 fuzzy 탐색을 생략하기 때문이다. 그러나 fuzzy가 필요한 입력의 p95는 B와 거의 같다. B는 모든 입력에서 fuzzy 후보를 함께 만들기 때문에 약 26ms의 일정한 후보 생성 시간이 든다.
+  </div>
+
+  <h2>대표 사례</h2>
+  <table>
+    <thead><tr><th>입력</th><th>A/B/C에서 확인한 사실</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td><code>삼전</code></td><td>A는 OpenDART에 실제 존재하는 동명 비상장 법인 2개만 반환했다. B는 삼성전자를 fuzzy 후보로 추가했다. C는 삼성전자를 alias 후보로도 표시했다.</td><td>정확 일치가 있다고 fuzzy 후보를 버리면 사용자의 일반 약칭 의도를 놓칠 수 있다. 다만 후보가 여러 개이므로 삼성전자를 자동 선택하면 안 된다.</td></tr>
+      <tr><td><code>하닉</code></td><td>A/B는 SK하이닉스를 후보에 넣지 못했다. C는 alias 후보로 추가했다.</td><td>문자열 유사도만으로는 짧은 약칭을 해결할 수 없다.</td></tr>
+      <tr><td><code>엘지전자</code></td><td>A/B는 LG전자를 후보에 넣지 못했다. C는 alias 후보로 추가했다.</td><td>한글과 영문 표기 체계가 다른 이름은 문자 유사도만으로 연결하기 어렵다.</td></tr>
+      <tr><td><code>엘지</code>, <code>현대</code>, <code>삼성</code></td><td>A/B는 관련 대표 기업을 보존하지 못했다. C는 각각의 관련 후보를 복수로 유지했다.</td><td>이 표현들은 하나의 법인으로 확정하는 것이 아니라 후보를 제시하고 사용자 확인을 받아야 한다.</td></tr>
+      <tr><td><code>삼성전쟈</code></td><td>세 방식 모두 삼성전자를 후보에 포함했지만, 삼성전기·삼성기전 등과 문자열 유사 점수가 같았다.</td><td>오타 후보에 삼성전자가 있어도 점수만으로 자동 확정할 수 없다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>채택 판단</h2>
+  <table>
+    <thead><tr><th>후보</th><th>판정</th><th>근거와 한계</th></tr></thead>
+    <tbody>
+      <tr><td>A. 현재 exact-first</td><td class="reject">미채택</td><td><code>삼전</code>처럼 정확 일치 법인이 존재할 때 삼성전자 후보가 사라졌다. Candidate Recall도 B보다 낮았다.</td></tr>
+      <tr><td>B. exact + fuzzy 통합</td><td class="hold">조건부 채택</td><td>수동 별칭 없이 Candidate Recall이 20/26에서 21/26으로 개선됐고, exact 후보가 fuzzy 후보를 가리는 구조적 문제를 해소했다. 단, 평균 후보 수가 2.93개에서 5개로 늘었고 독립 holdout 검증이 남아 있다.</td></tr>
+      <tr><td>C. B + 개발용 별칭</td><td class="hold">최종 채택 보류</td><td>Candidate Recall은 가장 높지만, 별칭 사전이 이 평가 입력과 같은 개발 가정으로 작성됐다. 따라서 이 점수는 미지 표현 일반화 성능이 아니라 사전이 해당 입력을 복구하는지 보여 주는 진단 결과다. 별칭 사전에 없는 독립 holdout으로 재평가해야 한다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>결론과 다음 확인</h2>
+  <p>다음 평가의 기준 후보 생성기는 B로 둔다. 이후에는 B와 “B + 별칭 사전”을 <strong>별칭 사전 작성에 사용하지 않은 holdout</strong>에서 비교한다. 별칭이 정답 후보 누락을 줄이면서도 모호 표현을 하나의 법인으로 자동 확정하지 않는 경우에만 별칭 정책을 채택한다.</p>
+  <p>이번 결과는 최종 pipeline 구현이나 <code>src/</code> 코드를 변경하지 않는다.</p>
+</body>
+</html>
