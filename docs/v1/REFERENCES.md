@@ -31,6 +31,26 @@ V1의 데이터 계약과 초기 OpenDART 조회 범위를 정할 때 확인한 
 | 단일 workflow | [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api) | State·Node·Edge의 역할, 조건부 edge의 라우팅 규칙 |
 | 로컬 Qwen 연결 | [ChatOllama integration](https://docs.langchain.com/oss/python/integrations/chat/ollama) | `langchain-ollama` 패키지, 모델 호출·tool calling 지원 확인 방법 |
 
+## V1 기업 식별 LLM 검색어 제안 평가 레퍼런스
+
+2026-09-14에 다시 확인한 공식 자료다. 다음 평가에서는 LLM이 `corp_code`를 고르거나 OpenDART를 직접 호출하지 않고, 구조화된 **검색어 후보**만 반환하게 한다.
+
+| 자료 | 이번 평가에서 확인한 내용 | 활용 목적 |
+|---|---|---|
+| [LangChain Models — Structured output](https://docs.langchain.com/oss/python/langchain/models) | `with_structured_output()`은 Pydantic 스키마로 출력 형식을 제한하며, `include_raw=True`로 원문·파싱 결과·오류를 함께 받을 수 있음 | 검색어 후보 수·문자열 길이·허용 필드를 검사하고, 형식 실패를 별도 지표로 기록 |
+| [LangChain ChatOllama integration](https://docs.langchain.com/oss/python/integrations/chat/ollama) | `ChatOllama`는 구조화 출력과 tool calling을 지원하며 `temperature=0`으로 생성 조건을 고정할 수 있음 | 로컬 `qwen3.6:27b`를 같은 실행 조건으로 호출하고 응답 메타데이터에서 지연시간을 기록 |
+
+이번 단계의 안전 경계는 다음과 같다.
+
+```text
+사용자 원문 기업 표현 + LLM 제안 검색어
+→ OpenDART 기업 목록에서 각각 후보 탐색
+→ corp_code 기준 후보 병합
+→ 코드가 RESOLVED / NEEDS_CONFIRMATION / NOT_FOUND 처리
+```
+
+LLM 제안은 후보 생성의 입력일 뿐, 단독으로 기업 또는 `corp_code`를 자동 확정하는 근거가 아니다. 정확한 정식 법인명에서 OpenDART 고유 exact 결과가 하나이면 LLM 호출 없이 그대로 처리한다.
+
 ## 아직 수집하지 않는 자료
 
 - LlamaIndex의 parsing, chunking, embedding, vector store, retrieval 평가 문서는 공시 원문 RAG의 데이터 범위와 비교 후보가 정해지는 시점에 최신 공식 문서로 수집한다.

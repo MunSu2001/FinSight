@@ -31,6 +31,11 @@
 | False Not-found Rate | 실제 대상 기업이 있는 입력을 `NOT_FOUND`로 처리한 수 / 실제 대상 기업이 있는 전체 입력 수 | 실제 기업 표현 10개 중 1개를 못 찾았다고 하면 0.1 | 낮을수록 유효한 기업·별칭·오타를 놓치지 않음 | Candidate Recall@K와 함께 봐야 원인을 후보 생성과 cutoff 정책으로 분리할 수 있음 |
 | Fuzzy-path False Not-found Rate | exact·별칭·오타 정정 경로를 타지 않고 fuzzy 후보만 사용하는 유효 입력을 `NOT_FOUND`로 처리한 수 / 해당 유효 입력 수 | fuzzy 유효 입력 4개 중 1개를 cutoff로 차단하면 0.25 | 낮을수록 cutoff가 아직 지원해야 할 미등록 오타·표현을 놓치지 않음 | 전체 False Not-found Rate는 exact·별칭 경로가 분모에 섞여 cutoff의 위험을 작게 보일 수 있으므로, cutoff 평가에서는 이 지표를 함께 기록한다. |
 | Policy Preservation Accuracy | cutoff와 무관하게 처리해야 하는 exact·명시적 해석·포괄 표현 입력에서 기대 상태와 실제 상태가 완전히 같은 수 / 보호 입력 수 | exact 2건·해석 3건·재질문 2건 중 6건의 상태가 기대값과 같으면 6/7 | 높을수록 cutoff가 기존 확정·해석·보류 정책을 침범하지 않음 | 단순히 `NOT_FOUND`가 아니라고 성공으로 보지 않는다. `RESOLVED`, `RESOLVED_INTERPRETED`, `NEEDS_CONFIRMATION`을 구분한다. |
+| LLM Search-term Validity | LLM이 반환한 검색어 중 정규화 exact OpenDART 기업명 인덱스에서 하나 이상의 후보를 실제로 찾은 검색어 수 / LLM이 반환한 전체 검색어 수 | 10개 제안 중 8개가 정규화 exact 후보를 만들면 0.8 | 높을수록 존재하지 않는 법인명·형식 오류 같은 무효 제안이 적음 | fuzzy 후보는 어떤 문자열에도 생길 수 있으므로 유효성 분자에 넣지 않는다. 실제 기업을 찾았다고 해서 사용자의 의도 기업이라는 뜻은 아니다. Candidate Recall과 함께 본다. |
+| LLM Expansion Contribution | 기준선 후보에 없던 정답 기업을 LLM 검색어 확장 뒤 후보 집합에 새로 포함한 사례 수 / 정답 기업이 존재하는 전체 사례 수 | 기준선이 놓친 10개 중 3개를 새로 찾으면 전체 기준 기여도는 0.3 | 높을수록 LLM 호출의 실질적 후보 회수 이득이 큼 | 이미 기준선이 정답 후보를 포함한 사례는 이득으로 세지 않는다. |
+| Structured-output Success Rate | LLM 호출 중 Pydantic 스키마 파싱과 필드 검증에 성공한 호출 수 / 전체 LLM 호출 수 | 20번 중 19번이 유효한 구조로 반환되면 0.95 | 높을수록 후속 코드가 안정적으로 결과를 읽음 | 유효 JSON처럼 보여도 스키마를 통과하지 못하면 실패다. 빈 검색어 목록은 형식 성공이지만 후보 품질은 별도 평가한다. |
+| LLM Call Rate | 전체 입력 중 LLM 검색어 확장 경로를 호출한 입력의 비율 | 30개 입력 중 12개가 LLM 호출이면 0.4 | 낮을수록 비용·지연은 줄어듦 | 정확한 고유 exact 입력은 호출하지 않는 정책인지 함께 기록한다. 품질이 명확히 열등하지 않은 후보 간 비용 지표다. |
+| No-target LLM Candidate Injection Rate | 실제 대상 기업이 없는 입력에서, LLM 제안 검색어가 OpenDART의 실제 법인 후보를 하나 이상 새로 만든 사례 수 / 대상 부재 LLM 호출 사례 수 | 존재하지 않는 5개 입력 중 2개에서 LLM이 실제 법인 후보를 만들면 0.4 | 낮을수록 존재하지 않는 질문을 그럴듯한 실제 기업으로 연결할 위험이 적음 | 기준선 fuzzy 후보가 아니라 **LLM 제안 검색어로 생긴 후보**만 센다. `NOT_FOUND` 최종 정책의 품질과는 구분한다. |
 
 현재 `05_entity_resolution_baseline.ipynb`의 개발 결과는 별칭 규칙을 만든 사례를 다시 평가하므로 최종 성능이 아니다. 최종 비교 전에는 별칭 사전 작성에 쓰지 않은 holdout 사례가 필요하다.
 
