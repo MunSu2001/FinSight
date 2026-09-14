@@ -10,6 +10,7 @@
 | [OpenDART 공시검색 API](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019001) | 회사·기간·공시 유형 등 조건으로 공시 목록을 검색한다. | V1의 기간 조건 공시 목록 Tool 후보다. |
 | [OpenDART 단일회사 전체 재무제표 API](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS003&apiId=2019020) | 정기보고서 기반 단일 회사 재무제표 조회 API를 제공한다. | V1 재무 원천값과 CFS/OFS 데이터 계약을 검증한다. |
 | [LangChain Models — Structured output](https://docs.langchain.com/oss/python/langchain/models) | `with_structured_output()`으로 Pydantic 등 스키마에 맞는 구조화 출력을 요청할 수 있고, 원문·파싱 결과를 함께 보존할 수 있다. | LLM이 자유 답변 대신 기업명 검색어·Router 인자를 제한된 형식으로 반환하게 한다. |
+| [LangChain Messages](https://docs.langchain.com/oss/python/langchain/messages) | `system` 메시지는 모델의 역할·행동 지침을, `human` 메시지는 사용자 입력을 전달한다. 메시지는 모델 간 공통 형식으로 사용된다. | 같은 Qwen 모델에서 시스템 프롬프트 정책만 바꾸는 검색어 제안 A/B 평가의 입력 경계를 고정한다. |
 | [LangChain ChatOllama integration](https://docs.langchain.com/oss/python/integrations/chat/ollama) | `ChatOllama`는 로컬 Ollama 모델의 구조화 출력과 tool calling 연동을 제공한다. | 초기 로컬 Qwen 평가에서 동일한 호출 인터페이스를 사용한다. |
 | [RapidFuzz process 문서](https://rapidfuzz.github.io/RapidFuzz/Usage/process.html) | 문자열 후보 집합에서 유사도 상위 결과를 반환하며 scorer·후보 수·cutoff를 설정할 수 있다. | LLM 없이도 가능한 기업명 오타 후보 생성 기준선으로 사용한다. |
 
