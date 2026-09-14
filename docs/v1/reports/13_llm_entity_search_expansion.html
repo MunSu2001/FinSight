@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-13 LLM 기업명 검색어 확장 평가</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font: 16px/1.65 system-ui, sans-serif; }
+    h1, h2 { color: #111827; line-height: 1.3; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; }
+    th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .decision { background: #fef2f2; border-left: 4px solid #dc2626; padding: 14px 16px; }
+    .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px 16px; }
+    code { background: #f3f4f6; padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <h1>V1-13: LLM 구조화 검색어 제안 평가</h1>
+
+  <p><strong>실행일:</strong> 2026-09-14<br>
+  <strong>실행 노트북:</strong> <code>notebooks/v1/13_llm_entity_search_expansion.ipynb</code><br>
+  <strong>모델:</strong> 로컬 <code>qwen3.6:27b</code>, <code>temperature=0</code><br>
+  <strong>LangChain:</strong> 1.2.10 / <strong>langchain-ollama:</strong> 1.1.0</p>
+
+  <h2>1. 목적과 가설</h2>
+
+  <p>사용자 기업명 표현이 줄임말·오타·한글/영문 표기 차이일 때, LLM이 구조화된 검색어 후보를 제안하면 기존의 정규화 exact + 문자열 유사도(fuzzy) 후보 생성보다 정답 OpenDART 기업을 더 많이 후보 집합에 포함할 것이라는 가설을 검증했다.</p>
+
+  <p>LLM은 <code>corp_code</code>를 선택하지 않고 검색어만 반환한다. 각 검색어는 OpenDART 기업코드 목록에서 다시 탐색하고, 후보는 <code>corp_code</code> 기준으로 병합한다. 고유 raw exact가 있는 8개 입력은 LLM을 호출하지 않았다.</p>
+
+  <h2>2. 비교 조건</h2>
+
+  <table>
+    <thead><tr><th>후보</th><th>처리</th><th>역할</th></tr></thead>
+    <tbody>
+      <tr><td>A. 기준선</td><td>원문 기업명으로 OpenDART 정규화 exact와 fuzzy 후보를 병합</td><td>LLM 없이 가능한 후보 탐색 기준</td></tr>
+      <tr><td>B. LLM 확장</td><td>A 실행 후 고유 raw exact가 없을 때만 Qwen이 최대 2개 검색어를 제안하고, 같은 OpenDART 인덱스로 재탐색·병합</td><td>LLM 검색어 제안의 추가 이득과 비용 확인</td></tr>
+    </tbody>
+  </table>
+
+  <p>평가 입력은 26개이며, 정답 기업이 있는 사례는 21개다. 정식명, 띄어쓰기, 시장 약칭, 한 글자 오타, 한글 표기, 포괄 표현, 존재하지 않는 가상 기업명을 포함했다. 정답 기업·종목코드는 채점에만 사용했고 LLM 프롬프트나 후보 생성 함수에는 전달하지 않았다.</p>
+
+  <h2>3. 결과</h2>
+
+  <table>
+    <thead><tr><th>지표</th><th>A. 기준선</th><th>B. LLM 확장</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td>Candidate Recall</td><td>16 / 21 = 0.762</td><td>16 / 21 = 0.762</td><td>정답 기업 후보 포함률의 개선이 없었다.</td></tr>
+      <tr><td>LLM Expansion Contribution</td><td>—</td><td>0 / 21 = 0.000</td><td>기준선이 놓친 정답을 LLM이 새로 넣은 사례가 없었다.</td></tr>
+      <tr><td>평균 후보 수</td><td>5.0</td><td>5.0</td><td>후보 집합도 달라지지 않았다.</td></tr>
+      <tr><td>구조화 출력 성공률</td><td>—</td><td>18 / 18 = 1.000</td><td>출력 형식은 안정적이었지만, 형식 성공은 검색 품질을 보장하지 않았다.</td></tr>
+      <tr><td>LLM Search-term Validity</td><td>—</td><td>0.000</td><td>제안된 검색어가 OpenDART 정규화 exact 기업명으로 검증된 비율은 0이었다.</td></tr>
+      <tr><td>LLM Call Rate</td><td>—</td><td>18 / 26 = 0.692</td><td>전체 입력의 약 69%에서 모델 호출이 발생했다.</td></tr>
+      <tr><td>LLM 호출 p50 / p95</td><td>—</td><td>52.09초 / 70.58초</td><td>기업 후보 확장 단계로는 매우 큰 지연시간이다.</td></tr>
+      <tr><td>No-target LLM Candidate Injection Rate</td><td>—</td><td>0 / 3 = 0.000</td><td>대상 부재 입력에서 LLM이 새 실제 기업 후보를 주입하지는 않았다. 단, 대부분 빈 검색어를 반환했으므로 단독 안전성 우위 근거로 해석하면 안 된다.</td></tr>
+      <tr><td>숫자형 검색어 거부 수</td><td>—</td><td>0</td><td><code>corp_code</code>·종목코드처럼 숫자만 제안한 사례는 없었다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. 실패 사례와 원인 해석</h2>
+
+  <p>기준선이 놓친 5개 정답 사례는 <code>하닉</code>, <code>엘지전자</code>, <code>네이버</code>, <code>포스코홀딩스</code>, <code>삼바</code>였다. B도 모두 놓쳤다.</p>
+
+  <p>18회의 LLM 호출 중, 저장된 결과에서 비어 있지 않은 검색어는 <code>엘지전자</code>와 <code>네이버</code> 두 개뿐이었다. 둘은 입력 원문을 그대로 반복한 형태였고, OpenDART의 정규화 exact 기업명으로 검증되지 않았다. 나머지 호출은 빈 검색어 목록을 반환했다. 단일 확인 사례 <code>하닉</code>도 <code>decision='unknown'</code>, 빈 목록을 반환했다.</p>
+
+  <div class="note">
+    <strong>해석:</strong> 이 결과는 “Qwen이 기업명을 절대 해석하지 못한다”는 결론이 아니다. 현재 프롬프트가 불확실하거나 포괄 표현이면 빈 목록을 반환하도록 강하게 제한했기 때문에, 줄임말·오타까지 과도하게 보류한 것으로 해석하는 것이 타당하다. 다만 실제 측정 결과상 이 프롬프트·모델 조합은 안전한 대신 후보 회수 이득이 전혀 없었다.
+  </div>
+
+  <h2>5. 채택 및 미채택</h2>
+
+  <div class="decision">
+    <strong>미채택: B. 현재 LLM 검색어 확장 프롬프트 + qwen3.6:27b</strong><br>
+    Candidate Recall과 후보 수가 기준선과 동일하고, LLM 신규 기여가 0이며, 입력의 69%에 대해 p50 52초·p95 71초의 지연시간이 발생했다. 따라서 이 조합을 최종 기업 식별 pipeline에 넣지 않는다.
+  </div>
+
+  <p><strong>유지: A. 정규화 exact + fuzzy 후보 생성 기준선</strong><br>
+  이 결과는 A가 최종 구조로 확정됐다는 뜻은 아니다. LLM 확장 B가 명확히 이득을 보이지 않았으므로, 다음 비교의 기준선으로만 유지한다.</p>
+
+  <h2>6. 한계와 다음 비교 조건</h2>
+
+  <ul>
+    <li>현재 26개 사례는 개발용 평가셋이다. 최종 채택 전에는 프롬프트·정책 작성에 쓰지 않은 독립 holdout으로 다시 평가해야 한다.</li>
+    <li>이번 notebook의 <code>안전 상태</code>는 후보 확장만 분리해 보기 위한 임시 처리다. LLM이 빈 목록을 반환한 대상 부재 입력도 <code>NEEDS_CONFIRMATION</code>으로 남기므로, 기존 NOT_FOUND cutoff 정책의 최종 품질을 재평가한 결과는 아니다.</li>
+    <li>구조화 출력 성공률은 형식 검증 지표다. 의미적으로 올바른 검색어를 반환했는지는 Candidate Recall·Search-term Validity로 별도 판단해야 한다.</li>
+    <li>다음 후보는 모델을 바로 바꾸기보다, “모호한 그룹 표현은 보류하되 명백한 약칭·오타는 가설 검색어를 제안한다”는 프롬프트 정책을 별도 후보로 정의해 A/B 비교해야 한다. LLM 제안만으로 자동 <code>corp_code</code> 확정은 여전히 허용하지 않는다.</li>
+  </ul>
+
+  <h2>7. 재현 정보</h2>
+
+  <p>OpenDART 기업코드 목록은 2026-09-14 16:03:17+09:00에 조회했고, 전체 레코드 수는 119,183개였다. 실행 환경과 프롬프트 버전은 노트북의 <code>RUN_CONFIG</code>에 저장돼 있다.</p>
+</body>
+</html>

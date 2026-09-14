@@ -6,10 +6,25 @@
 
 비교 대상 하나당 `NN_topic.html` 파일을 만든다. 예시는 다음과 같다.
 
-- `01_tool_selection.html`
-- `02_workflow_comparison.html`
-- `03_filing_rag_retrieval.html`
-- `04_e2e_workflow.html`
+- `13_llm_entity_search_expansion.html`
+- `14_llm_entity_search_prompt_comparison.html`
+- `20_filing_rag_retrieval.html`
+
+`NN`은 해당 결과를 만든 notebook의 번호와 같아야 한다. 따라서 `notebooks/v1/13_llm_entity_search_expansion.ipynb`의 실제 결과는 `13_llm_entity_search_expansion.html`에 기록한다.
+
+## 현재 V1 보고서 순서
+
+| Notebook | 보고서 | 평가 대상 |
+|---|---|---|
+| 05 | `05_entity_resolution_baseline.html` | 기업 식별 기준선 |
+| 06 | `06_entity_resolution_index_benchmark.html` | 전수 탐색과 인덱스 탐색 |
+| 07 | `07_entity_resolution_fuzzy_candidates.html` | fuzzy 후보 생성 |
+| 08 | `08_entity_resolution_confirmation_policy.html` | 자동 확정과 사용자 확인 정책 |
+| 09 | `09_entity_not_found_policy.html` | 초기 NOT_FOUND 정책 |
+| 10 | `10_entity_candidate_composition.html` | 후보 구성 A/B/C |
+| 11 | `11_entity_confirmation_with_union_candidates.html` | 통합 후보 기반 확인 정책 |
+| 12 | `12_not_found_cutoff_with_interpretation_policy.html` | cutoff grid |
+| 13 | `13_llm_entity_search_expansion.html` | LangChain LLM 검색어 확장 |
 
 ## 각 보고서의 필수 내용
 
