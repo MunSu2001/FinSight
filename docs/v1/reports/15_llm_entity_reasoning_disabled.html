@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-15 Thinking 비활성화 기업명 검색어 확장 평가</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font: 16px/1.65 system-ui, sans-serif; }
+    h1, h2 { color: #111827; line-height: 1.3; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; }
+    th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .decision { background: #ecfdf5; border-left: 4px solid #059669; padding: 14px 16px; }
+    .warning { background: #fff7ed; border-left: 4px solid #ea580c; padding: 14px 16px; }
+    .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px 16px; }
+    code { background: #f3f4f6; padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <h1>V1-15: Thinking 비활성화 + Schema Grounding 평가</h1>
+
+  <p><strong>실행일:</strong> 2026-09-15<br>
+  <strong>실행 노트북:</strong> <code>notebooks/v1/15_llm_entity_reasoning_disabled.ipynb</code><br>
+  <strong>모델:</strong> 로컬 <code>qwen3.6:27b</code>, <code>temperature=0</code>, <code>reasoning=False</code><br>
+  <strong>구조화 출력:</strong> Pydantic JSON Schema + Schema grounding prompt<br>
+  <strong>OpenDART 기업코드 목록:</strong> 119,281개 레코드, 2026-09-15 20:14:37 KST 조회<br>
+  <strong>요청 경계:</strong> 클라이언트 HTTP timeout 300초. GPU, <code>num_ctx</code>, 모델 적재 상태는 노트북에서 변경하지 않음.</p>
+
+  <h2>1. 목적과 비교 조건</h2>
+
+  <p>14번의 기본 thinking 구조화 호출은 장시간 완료되지 않아 후보 품질을 평가하지 못했다. 이번 실험은 모델·temperature·26개 사례를 유지한 채 <code>reasoning=False</code>와 JSON Schema의 프롬프트 명시를 함께 적용했을 때, 안정적으로 구조화 출력을 만들면서 기업 후보 회수율을 높일 수 있는지 확인했다.</p>
+
+  <table>
+    <thead><tr><th>후보</th><th>처리</th><th>의미</th></tr></thead>
+    <tbody>
+      <tr><td>A. 기준선</td><td>사용자가 입력한 원문 기업 표현으로 OpenDART 정규화 exact와 fuzzy 후보를 생성</td><td>LLM 없이 가능한 기본 후보 집합</td></tr>
+      <tr><td>B. reasoning-off 확장</td><td>A를 만든 뒤 고유 raw exact가 아닌 입력에만 LLM이 최대 두 검색어를 제안. 각 검색어를 OpenDART에서 다시 탐색해 A와 병합</td><td>LLM은 검색어 가설만 제안하며 <code>corp_code</code>를 확정하지 않음</td></tr>
+    </tbody>
+  </table>
+
+  <p>정답 기업명·종목코드·기대 행동 라벨은 채점에만 사용했고 LLM 프롬프트에는 전달하지 않았다. 이번 결과는 <code>reasoning=False + schema grounding</code>의 <strong>결합 조건</strong> 평가다. 두 변경 중 어느 하나만의 효과를 분리해 증명한 실험은 아니다.</p>
+
+  <h2>2. 결과</h2>
+
+  <table>
+    <thead><tr><th>지표</th><th>결과</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td>정답 기업이 있는 사례</td><td>21개 / 전체 26개</td><td>Candidate Recall의 분모다.</td></tr>
+      <tr><td>A. Candidate Recall</td><td>16 / 21 = <strong>0.762</strong></td><td>LLM 없이 정답 기업을 후보에 포함한 비율이다.</td></tr>
+      <tr><td>B. Candidate Recall</td><td>17 / 21 = <strong>0.810</strong></td><td>A보다 1건, 4.8%p 높다.</td></tr>
+      <tr><td>B. LLM Expansion Contribution</td><td>1 / 21 = <strong>0.048</strong></td><td>LLM이 A가 놓친 정답을 새로 후보에 넣은 사례는 <code>엘지전자 → LG전자</code> 한 건이다.</td></tr>
+      <tr><td>B. LLM Candidate Recall</td><td>8 / 12 = <strong>0.667</strong></td><td>LLM 호출이 필요했던 정답 후보 사례 12개 중, LLM 제안 검색어 자체가 정답 기업 후보를 포함한 비율이다.</td></tr>
+      <tr><td>안전 보류 정확도</td><td>5 / 5 = <strong>1.000</strong></td><td><code>엘지</code>, <code>현대</code>, 가상 기업명 3개를 실제 기업으로 억지 제안하지 않고 ambiguous/unknown으로 보류했다.</td></tr>
+      <tr><td>구조화 출력 성공률</td><td>18 / 18 = <strong>1.000</strong></td><td>timeout·파싱 오류 없이 모든 LLM 호출이 계획 JSON으로 처리됐다.</td></tr>
+      <tr><td>검색어 exact 유효성</td><td>10 / 20 = <strong>0.500</strong></td><td>LLM이 낸 20개 검색어 중 OpenDART 정규화 exact 키에 존재한 검색어의 비율이다. 제안 절반은 그대로는 검증되지 않았다.</td></tr>
+      <tr><td>LLM 호출률</td><td>18 / 26 = <strong>0.692</strong></td><td>고유 raw exact가 아닌 사례에서만 호출했다. <code>카카오</code>는 원문 exact 결과가 하나가 아니어서 코드 조건상 LLM이 호출됐다.</td></tr>
+      <tr><td>평가 호출 p50 / p95</td><td><strong>1.75초 / 2.02초</strong></td><td>사전 smoke 호출 뒤의 warm-run 기준이다. 첫 smoke 호출은 13.28초였으므로 cold/warm을 같은 값으로 일반화하면 안 된다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. 사례 해석</h2>
+
+  <p><strong>개선한 사례:</strong> <code>엘지전자</code>에서 A는 정답 <code>LG전자</code>를 후보에 넣지 못했지만, B는 <code>LG전자</code>를 제안해 정답 후보를 회수했다. 이것이 B의 유일한 신규 기여다.</p>
+
+  <p><strong>계속 놓친 사례:</strong> <code>하닉</code>은 <code>하닉</code>, <code>하닉홀딩스</code>를 제안해 <code>SK하이닉스</code>를 회수하지 못했다. <code>네이버</code>과 <code>포스코홀딩스</code>는 입력을 사실상 반복해 OpenDART의 표준 표기(<code>NAVER</code>, <code>POSCO홀딩스</code>)로 바꾸지 못했다. <code>삼바</code>는 unknown으로 보류해 <code>삼성바이오로직스</code>를 회수하지 못했다.</p>
+
+  <div class="warning">
+    <strong>검색어 품질의 주의점:</strong> <code>삼전 → 삼전, 삼전산업</code>, <code>엘지전자 → LG전자, 엘지전자</code>처럼 유효한 검색어와 검증되지 않은 검색어가 섞여 나왔다. 따라서 B는 후보를 넓히는 역할까지만 허용해야 하며, LLM 제안만으로 특정 기업이나 <code>corp_code</code>를 자동 확정하면 안 된다.
+  </div>
+
+  <h2>4. 채택·미채택 판단</h2>
+
+  <div class="decision">
+    <strong>조건부 채택: B. reasoning-off + schema grounding</strong><br>
+    기본 thinking 조건과 달리 18개 호출이 모두 완료·파싱됐고, A보다 Candidate Recall이 1건 높으며 대상 부재 입력도 5/5 안전 보류했다. 따라서 이후 Prompt 또는 모델 후보를 비교할 때 사용할 LLM 검색어 확장 조건으로 유지한다.
+  </div>
+
+  <p><strong>유지: A. OpenDART exact + fuzzy 기준선</strong><br>
+  A는 LLM이 실패하거나 timeout일 때에도 항상 동작하는 필수 fallback이다. B의 개선폭이 1/21에 그치므로 A를 대체하거나 B를 최종 통합 pipeline에 넣는 결정은 아직 하지 않는다.</p>
+
+  <div class="note">
+    <strong>최종 채택 보류:</strong> 이번 실험만으로 “로컬 Qwen 기반 LLM 확장이 충분하다”고 결론 내릴 수 없다. 평가셋은 개발용 26개뿐이고, 두 설정 변경을 함께 적용했으며, 핵심 약칭·한글 표기 실패가 남아 있다.
+  </div>
+
+  <h2>5. 한계와 다음 비교</h2>
+
+  <ul>
+    <li>다음 Prompt 후보는 <code>하닉</code>·<code>삼바</code> 같은 명백한 시장 약칭과 <code>네이버</code>·<code>포스코홀딩스</code> 같은 한글/영문 표기 변환을 더 잘 제안하도록 비교해야 한다.</li>
+    <li>LLM이 생성한 검색어의 절반만 OpenDART exact 키에 유효했다. 후보 생성 후 OpenDART 재검증·후보 병합·사용자 재질문 정책을 유지해야 한다.</li>
+    <li><code>카카오</code>는 평가 라벨상 skip이지만, 현재 <code>needs_llm</code>이 raw exact 결과 수만 보고 판단해 LLM을 호출했다. 실제 통합 전에는 “동명 exact 복수 후보”를 LLM 확장으로 보낼지 바로 사용자 확인으로 보낼지 정책 비교가 필요하다.</li>
+    <li>최종 선택 전에는 Prompt 작성에 사용하지 않은 독립 holdout과, 필요하면 API 모델을 포함한 모델 비교에서 Candidate Recall, 안전 보류, 오제안 비율, p50/p95를 다시 측정해야 한다.</li>
+  </ul>
+
+  <h2>6. 재현 정보</h2>
+
+  <p>실행 시각은 2026-09-15 11:14:47 UTC이며, 실행 설정은 노트북의 <code>RUN_CONFIG</code>에 저장돼 있다. 실행한 코드 기준 커밋은 <code>c6d0411</code>이다.</p>
+</body>
+</html>

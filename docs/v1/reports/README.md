@@ -25,6 +25,7 @@
 | 11 | `11_entity_confirmation_with_union_candidates.html` | 통합 후보 기반 확인 정책 |
 | 12 | `12_not_found_cutoff_with_interpretation_policy.html` | cutoff grid |
 | 13 | `13_llm_entity_search_expansion.html` | LangChain LLM 검색어 확장 |
+| 15 | `15_llm_entity_reasoning_disabled.html` | Thinking 비활성화 + Schema grounding LLM 검색어 확장 |
 
 ## 각 보고서의 필수 내용
 
