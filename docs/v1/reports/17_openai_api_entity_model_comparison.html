@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-17 로컬 Qwen과 OpenAI API 기업명 검색어 확장 비교</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font: 16px/1.65 system-ui, sans-serif; }
+    h1, h2 { color: #111827; line-height: 1.3; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; }
+    th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .decision { background: #ecfdf5; border-left: 4px solid #059669; padding: 14px 16px; }
+    .warning { background: #fff7ed; border-left: 4px solid #ea580c; padding: 14px 16px; }
+    .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px 16px; }
+    code { background: #f3f4f6; padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <h1>V1-17: 로컬 Qwen과 OpenAI API 기업명 검색어 확장 비교</h1>
+
+  <p><strong>실행일:</strong> 2026-09-15<br>
+  <strong>실행 노트북:</strong> <code>notebooks/v1/17_openai_api_entity_model_comparison.ipynb</code><br>
+  <strong>후보 A:</strong> 로컬 <code>qwen3.6:27b</code>, <code>ChatOllama</code>, <code>temperature=0</code>, <code>reasoning=False</code><br>
+  <strong>후보 B:</strong> <code>gpt-5.6-luna</code>, <code>ChatOpenAI</code>, <code>temperature=0</code>, <code>reasoning_effort=none</code><br>
+  <strong>공통 조건:</strong> 16번의 상세 Prompt B, 동일 OpenDART 기업코드 목록, 26개 개발 사례, OpenDART 재검증, 최대 2개 검색어 가설, 300초 timeout</p>
+
+  <h2>1. 목적과 비교 범위</h2>
+  <p>로컬 Qwen이 해결하지 못한 약칭·한글/영문 표기 변환이 API 모델에서 개선되는지 확인했다. LLM은 기업이나 <code>corp_code</code>를 고르지 않고 검색어 가설만 반환한다. 제안된 검색어는 다시 OpenDART 목록에서 검증하고, 새로 나온 후보는 자동 확정하지 않는다.</p>
+  <p>두 제공처는 구조화 출력 전달 방식도 다르므로, 이 결과는 순수 파라미터 수 비교가 아니라 <strong>모델·제공처·구조화 출력 조합</strong> 비교다.</p>
+
+  <h2>2. 정량 결과</h2>
+  <table>
+    <thead><tr><th>지표</th><th>A. Local Qwen</th><th>B. OpenAI API</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td>Candidate Recall</td><td>18 / 21 = 0.857</td><td><strong>21 / 21 = 1.000</strong></td><td>API 후보가 정답 기업을 3건 더 포함했다.</td></tr>
+      <tr><td>LLM Candidate Recall</td><td>8 / 12 = 0.667</td><td><strong>12 / 12 = 1.000</strong></td><td>LLM이 직접 해결해야 하는 약칭·오타·표기 변환 12개에서 API가 모두 정답 후보를 만들었다.</td></tr>
+      <tr><td>LLM Expansion Contribution</td><td>2 / 21 = 0.095</td><td><strong>5 / 21 = 0.238</strong></td><td>기준 raw 검색에 없던 정답을 LLM이 새로 보탠 사례가 API에서 5건이다.</td></tr>
+      <tr><td>안전 보류 정확도</td><td>5 / 5 = 1.000</td><td>5 / 5 = 1.000</td><td><code>엘지</code>, <code>현대</code>, 가상 기업명에 임의의 실제 기업을 연결하지 않았다.</td></tr>
+      <tr><td>구조화 출력 / 계약 준수</td><td>각각 18 / 18</td><td>각각 18 / 18</td><td>두 후보 모두 파싱 실패 없이 약속한 JSON 형식을 지켰다.</td></tr>
+      <tr><td>OpenDART exact 검색어 유효성</td><td>0.550</td><td><strong>0.600</strong></td><td>API가 낸 검색어 중 OpenDART exact 키에 바로 맞는 비율도 높았다. 다만 1.000은 아니므로 검증 단계는 필요하다.</td></tr>
+      <tr><td>p50 / p95 지연시간</td><td>1.52초 / <strong>1.82초</strong></td><td><strong>1.50초</strong> / 2.53초</td><td>p50은 거의 같지만 API p95가 높다. 한 번의 교차 실행만으로 속도 우열을 확정하지 않는다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. 사례별 해석</h2>
+  <p><strong>API가 추가로 회수한 세 사례:</strong> <code>하닉 → SK하이닉스</code>, <code>포스코홀딩스 → POSCO홀딩스</code>, <code>삼바 → 삼성바이오로직스</code>다. Qwen은 각각 <code>하닉시스템·하닉</code>, <code>포스코홀딩스</code>, 빈 목록을 반환해 정답 후보를 만들지 못했다.</p>
+  <p><strong>공통으로 회수한 사례:</strong> <code>삼성전쟈 → 삼성전자</code>, <code>하이닉스 → SK하이닉스</code>, <code>현대차/현차 → 현대자동차</code>, <code>엘지전자 → LG전자</code>, <code>네이버 → NAVER</code>다. 단, raw fuzzy 기준선에 이미 정답이 있던 사례는 LLM의 신규 기여와 구분했다.</p>
+  <div class="warning"><strong>중요한 안전 해석:</strong> API가 <code>Samsung Electronics</code>, <code>SK Hynix</code>처럼 OpenDART exact에 바로 없는 영문 표현도 일부 함께 제안했다. 최종 기업 선택 권한을 LLM에 주면 안 되는 이유다. 현재처럼 OpenDART 후보 검증과 <code>corp_code</code> 병합, 필요 시 사용자 재질문이 남아 있어야 한다.</div>
+
+  <h2>4. 비용과 자원</h2>
+  <table>
+    <thead><tr><th>항목</th><th>OpenAI API 실행 결과</th></tr></thead>
+    <tbody>
+      <tr><td>평가 호출 수</td><td>18회</td></tr>
+      <tr><td>평가 입력 / 캐시 입력 / 출력 토큰</td><td>15,535 / 0 / 422</td></tr>
+      <tr><td>평가 호출 추정 비용</td><td>$0.003613</td></tr>
+      <tr><td>사전 연결 확인 호출 추정 비용</td><td>$0.000200</td></tr>
+      <tr><td>노트북 총 추정 비용</td><td>$0.003813</td></tr>
+    </tbody>
+  </table>
+  <p>추정 비용은 실행 시 노트북에 고정한 <code>gpt-5.6-luna</code>의 일반 입력 $0.20/MTok, 캐시 입력 $0.02/MTok, 출력 $1.20/MTok 기준이다. 실제 청구와 최신 가격은 다를 수 있다. 로컬 Qwen은 API 과금은 없지만 GPU 자원·모델 적재 비용을 이번 노트북에서 수치화하지 않았으므로 두 비용을 직접 비교할 근거는 아직 없다.</p>
+
+  <h2>5. 채택·미채택 판단</h2>
+  <div class="decision"><strong>조건부 채택: B. OpenAI API (<code>gpt-5.6-luna</code>)</strong><br>
+  Candidate Recall, LLM Candidate Recall, LLM 신규 기여, exact 검색어 유효성이 모두 Qwen보다 높았고, 안전 보류·구조화 출력·출력 계약은 낮아지지 않았다. 정확도를 우선하는 현재 기준에서 다음 기업 식별 정책 평가의 모델 후보로 사용한다.</div>
+  <p><strong>미채택: A. Local Qwen (<code>qwen3.6:27b</code>)</strong><br>
+  구조화 출력과 안전 보류는 안정적이고 API 과금도 없지만, 개발 사례에서 <code>하닉</code>·<code>포스코홀딩스</code>·<code>삼바</code>를 놓쳐 API보다 Candidate Recall이 낮았다. 최종 운영 모델 후보에서는 보류한다.</p>
+  <div class="note"><strong>최종 모델 선정은 보류:</strong> 이 평가는 26개 개발 사례 한 번의 실행이다. API 후보를 확정하려면 개발에 쓰지 않은 독립 holdout에서 기업 식별 전체 정책을 다시 검증해야 한다. API의 p95 지연시간과 실제 운영 비용도 그때 함께 재측정한다.</div>
+
+  <h2>6. 다음 평가</h2>
+  <p>다음 단계는 exact·fuzzy·LLM 검색어 확장·사용자 재질문·NOT_FOUND cutoff을 결합한 기업 식별 정책 후보 비교다. 이때 API 모델은 검색어 가설 생성에만 사용하며, 정확한 기업 선택은 OpenDART 검증 결과와 사용자 확인 정책이 담당한다.</p>
+
+  <h2>7. 재현 정보와 근거</h2>
+  <p>사례별 A→B / B→A 호출 순서를 교차해 순서 편향을 줄였다. 실행 코드 기준 커밋은 <code>6050e55</code>이다. 모델 기능·가격은 <a href="https://developers.openai.com/api/docs/models/gpt-5.6-luna">OpenAI 공식 gpt-5.6-luna 문서</a>, LangChain 호출 방식은 <a href="https://docs.langchain.com/oss/python/integrations/chat/openai">LangChain ChatOpenAI 공식 문서</a>를 참조했다.</p>
+</body>
+</html>
