@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-16 상세 Prompt 기업명 검색어 확장 비교</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font: 16px/1.65 system-ui, sans-serif; }
+    h1, h2 { color: #111827; line-height: 1.3; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; }
+    th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .decision { background: #ecfdf5; border-left: 4px solid #059669; padding: 14px 16px; }
+    .warning { background: #fff7ed; border-left: 4px solid #ea580c; padding: 14px 16px; }
+    .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px 16px; }
+    code { background: #f3f4f6; padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <h1>V1-16: 상세 Prompt 기업명 검색어 확장 A/B 평가</h1>
+
+  <p><strong>실행일:</strong> 2026-09-15<br>
+  <strong>실행 노트북:</strong> <code>notebooks/v1/16_llm_entity_prompt_detail_comparison.ipynb</code><br>
+  <strong>모델:</strong> 로컬 <code>qwen3.6:27b</code>, <code>temperature=0</code>, <code>reasoning=False</code><br>
+  <strong>공통 조건:</strong> 동일 OpenDART 기업코드 목록, 26개 개발 사례, JSON Schema, OpenDART 재검증, HTTP timeout 300초<br>
+  <strong>변수:</strong> system Prompt만 변경. GPU·<code>num_ctx</code>·모델 적재 상태와 후처리 로직은 변경하지 않음.</p>
+
+  <h2>1. 목적과 후보</h2>
+
+  <p>15번에서 안정화한 <code>reasoning=False + schema grounding</code> 조건에서, 약칭·오타·한글/영문 표기 변환 실패가 Prompt의 구체성 부족 때문인지 확인했다. LLM은 검색어 가설만 제안하고, 기업 또는 <code>corp_code</code>를 확정하지 않는다.</p>
+
+  <table>
+    <thead><tr><th>후보</th><th>Prompt 내용</th></tr></thead>
+    <tbody>
+      <tr><td>A. V15 기준 Prompt</td><td>역할, 약칭·오타·표기 차이의 기본 처리, 모호 표현 보류, 금지 항목을 짧게 정의한 15번 원문</td></tr>
+      <tr><td>B. 상세 정책 Prompt</td><td>호출 조건, 검색 가설의 역할, 약칭·오타·음역/영문 표기 판단, 원문 반복 제한, 모호·무근거 표현 보류, 금지 규칙, JSON 출력 계약을 단계적으로 명시</td></tr>
+    </tbody>
+  </table>
+
+  <p>평가 정답이나 직접 매핑은 B Prompt에 넣지 않았다. 따라서 <code>하닉 → SK하이닉스</code> 같은 정답을 Prompt가 미리 알고 있는 상태의 비교는 아니다.</p>
+
+  <h2>2. 결과</h2>
+
+  <table>
+    <thead><tr><th>지표</th><th>A. V15 기준</th><th>B. 상세 정책</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td>Candidate Recall</td><td>17 / 21 = 0.810</td><td><strong>18 / 21 = 0.857</strong></td><td>B가 정답 기업 후보를 1건 더 회수했다.</td></tr>
+      <tr><td>LLM Expansion Contribution</td><td>1 / 21 = 0.048</td><td><strong>2 / 21 = 0.095</strong></td><td>A가 놓친 정답을 LLM이 새로 넣은 사례가 B에서 2건이다.</td></tr>
+      <tr><td>LLM Candidate Recall</td><td>8 / 12 = 0.667</td><td>8 / 12 = 0.667</td><td>LLM 호출 대상 12개에서 직접 정답을 찾는 비율은 같았다.</td></tr>
+      <tr><td>안전 보류 정확도</td><td>5 / 5 = 1.000</td><td>5 / 5 = 1.000</td><td>모호 그룹명·가상 기업명에 실제 기업 후보를 주입하지 않았다.</td></tr>
+      <tr><td>구조화 출력 성공률</td><td>18 / 18 = 1.000</td><td>18 / 18 = 1.000</td><td>timeout·파싱 실패가 없었다.</td></tr>
+      <tr><td>출력 계약 준수율</td><td>18 / 18 = 1.000</td><td>18 / 18 = 1.000</td><td><code>candidate</code>는 1~2개 비공백 검색어, 보류 상태는 빈 목록을 지켰다.</td></tr>
+      <tr><td>OpenDART exact 검색어 유효성</td><td>0.476</td><td><strong>0.550</strong></td><td>B가 낸 검색어 중 OpenDART exact 키에 존재한 비율이 소폭 높다.</td></tr>
+      <tr><td>LLM 호출률</td><td>18 / 26 = 0.692</td><td>18 / 26 = 0.692</td><td>동일한 호출 조건을 사용했다.</td></tr>
+      <tr><td>warm-run p50 / p95</td><td>1.78초 / 2.05초</td><td>1.67초 / 2.27초</td><td>한 번의 교차 실행 결과다. p50·p95의 방향이 달라 속도 우열로 판단하지 않는다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. 사례별 해석</h2>
+
+  <p><strong>B의 추가 회수:</strong> A는 <code>네이버</code>를 그대로 제안해 OpenDART의 <code>NAVER</code>를 찾지 못했다. B는 <code>네이버</code>와 <code>NAVER</code>를 함께 제안하여 정답 후보를 회수했다. 기존의 <code>엘지전자 → LG전자</code> 회수도 유지했다.</p>
+
+  <p><strong>여전히 실패:</strong> B도 <code>하닉</code>을 <code>하닉시스템</code>, <code>하닉</code>으로 제안해 <code>SK하이닉스</code>를 찾지 못했다. <code>포스코홀딩스</code>는 표준 표기 <code>POSCO홀딩스</code>로 바꾸지 못했고, <code>삼바</code>는 ambiguous로 보류했다.</p>
+
+  <div class="warning">
+    <strong>회귀 사례:</strong> A는 <code>현차</code>에서 <code>현대자동차</code>를 제안했지만 B는 unknown으로 보류했다. raw fuzzy 기준선이 이미 <code>현대자동차</code> 후보를 포함해 최종 Candidate Recall은 낮아지지 않았지만, 상세 Prompt가 모든 약칭 해석을 일관되게 개선한 것은 아니다.
+  </div>
+
+  <h2>4. 채택·미채택 판단</h2>
+
+  <div class="decision">
+    <strong>조건부 채택: B. 상세 정책 Prompt</strong><br>
+    Candidate Recall과 LLM 신규 기여가 A보다 높았고, 안전 보류·구조화 출력·출력 계약을 모두 유지했다. 따라서 다음 API 모델 비교의 로컬 기준 Prompt로 사용한다.
+  </div>
+
+  <p><strong>미채택: A. V15 기준 Prompt</strong><br>
+  A는 안정적으로 동작하지만 같은 모델·후처리 조건에서 B보다 정답 후보를 하나 적게 회수했다. 최종 Prompt가 아니라 비교 기준선으로만 보존한다.</p>
+
+  <div class="note">
+    <strong>최종 채택 보류:</strong> B의 개선은 21개 정답 사례 중 1건뿐이며, <code>하닉</code>·<code>포스코홀딩스</code>·<code>삼바</code>와 <code>현차</code> 회귀가 남아 있다. 이 개발 평가만으로 최종 pipeline Prompt를 확정하지 않는다.
+  </div>
+
+  <h2>5. 한계와 다음 비교</h2>
+
+  <ul>
+    <li>이 결과는 로컬 <code>qwen3.6:27b</code> 한 모델과 개발용 26개 사례에 한정된다. Prompt의 일반화 성능은 독립 holdout에서 다시 확인해야 한다.</li>
+    <li>상세 Prompt와 모델 지식의 한계는 완전히 분리되지 않는다. 남은 실패 표현을 API 모델이 더 잘 처리하는지는 같은 Prompt B와 같은 사례로 비교해야 한다.</li>
+    <li>API 모델 연결은 제공처, 인증 방식, 호출 가격, 입력·출력 데이터 보존 조건을 사용자에게 먼저 보고하고 승인받은 뒤 진행한다.</li>
+    <li>LLM이 후보를 넓힐 뿐 최종 기업 선택은 OpenDART 검증과 사용자 확인 정책이 담당한다. 따라서 이 결과만으로 자동 선택 정책을 완화하지 않는다.</li>
+  </ul>
+
+  <h2>6. 재현 정보</h2>
+
+  <p>36회 호출은 사례마다 A→B와 B→A 순서를 교차했다. 이는 한 Prompt가 항상 먼저 warm 상태를 받는 편향을 줄이기 위한 것이며, 단일 실행의 latency 차이를 확정적 속도 차이로 해석하지 않는다. 실행한 코드 기준 커밋은 <code>faf3338</code>이다.</p>
+</body>
+</html>
