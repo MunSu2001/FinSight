@@ -25,6 +25,11 @@
   <strong>후보 B:</strong> <code>gpt-5.6-luna</code>, <code>ChatOpenAI</code>, <code>temperature=0</code>, <code>reasoning_effort=none</code><br>
   <strong>공통 조건:</strong> 16번의 상세 Prompt B, 동일 OpenDART 기업코드 목록, 26개 개발 사례, OpenDART 재검증, 최대 2개 검색어 가설, 300초 timeout</p>
 
+  <div class="note"><strong>한눈에 보는 결과</strong><br>
+  <strong>목적:</strong> 로컬 모델이 놓친 약칭·표기 변환을 API 모델이 보완하는지 확인한다.<br>
+  <strong>핵심 결과:</strong> Candidate Recall은 Qwen 18/21(0.857), OpenAI API 21/21(1.000)이었고, API가 <code>하닉</code>·<code>포스코홀딩스</code>·<code>삼바</code>를 추가 회수했다.<br>
+  <strong>현재 판단:</strong> 정확도 우선 기준에서 OpenAI API를 다음 정책 평가 후보로 조건부 채택한다. 단일 개발 사례 평가이므로 최종 운영 모델 확정은 API holdout 이후로 보류한다.</div>
+
   <h2>1. 목적과 비교 범위</h2>
   <p>로컬 Qwen이 해결하지 못한 약칭·한글/영문 표기 변환이 API 모델에서 개선되는지 확인했다. LLM은 기업이나 <code>corp_code</code>를 고르지 않고 검색어 가설만 반환한다. 제안된 검색어는 다시 OpenDART 목록에서 검증하고, 새로 나온 후보는 자동 확정하지 않는다.</p>
   <p>두 제공처는 구조화 출력 전달 방식도 다르므로, 이 결과는 순수 파라미터 수 비교가 아니라 <strong>모델·제공처·구조화 출력 조합</strong> 비교다.</p>
