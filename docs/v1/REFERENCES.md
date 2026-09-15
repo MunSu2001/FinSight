@@ -51,6 +51,24 @@ V1의 데이터 계약과 초기 OpenDART 조회 범위를 정할 때 확인한 
 
 LLM 제안은 후보 생성의 입력일 뿐, 단독으로 기업 또는 `corp_code`를 자동 확정하는 근거가 아니다. 정확한 정식 법인명에서 OpenDART 고유 exact 결과가 하나이면 LLM 호출 없이 그대로 처리한다.
 
+## V1 OpenAI API 모델 비교 레퍼런스
+
+2026-09-15에 확인한 공식 자료다. 이 비교는 기존 `.env`의 `OPENAI_MODEL`을 사용해 로컬 Qwen과 API 모델의 기업명 검색어 확장 품질을 비교한다. API 키 값은 notebook 출력·문서·Git에 기록하지 않는다.
+
+| 자료 | 확인한 내용 | 활용 목적 |
+|---|---|---|
+| [LangChain ChatOpenAI integration](https://docs.langchain.com/oss/python/integrations/chat/openai) | `langchain-openai`의 `ChatOpenAI`는 `OPENAI_API_KEY`를 읽고, 구조화 출력과 token usage 메타데이터를 지원한다. | 16번 상세 Prompt B를 유지한 API 모델 호출과 입력·출력 token 기록 |
+| [OpenAI Models](https://developers.openai.com/api/docs/models/gpt-5.6-luna) | 현재 설정 모델 `gpt-5.6-luna`는 비용 민감형 모델이며, 문서상 일반 입력 $0.20/MTok·캐시 입력 $0.02/MTok·출력 $1.20/MTok으로 안내된다. | 실행 시점의 token usage로 사전 연결 확인과 평가 호출 비용을 구분해 추정. 가격은 변경될 수 있어 결과 보고서에 기준일·출처를 함께 기록 |
+| [OpenAI API 데이터 정책](https://developers.openai.com/api/docs/guides/your-data) | API 전송 데이터는 기본적으로 모델 학습에 사용되지 않지만, abuse-monitoring 로그는 기본적으로 최대 30일 보관될 수 있다. | 외부 모델 호출 시 데이터 보존 조건을 명시하고, API 키·민감 입력을 출력·Git에서 제외 |
+
+### 이번 비교의 고정 조건
+
+- `.env`의 `OPENAI_API_KEY`, `OPENAI_MODEL`을 사용한다. 키 값은 출력하지 않는다.
+- 16번에서 조건부 채택한 상세 Prompt B와 같은 26개 개발 사례·OpenDART 재검증·Pydantic 출력 계약을 사용한다.
+- API 모델도 `corp_code`를 선택하지 않고 검색어 가설만 반환한다.
+- 모델 품질 외에 API 구조화 출력 방식이 달라질 수 있으므로, 결과는 순수 모델 크기만이 아니라 **모델·제공처 조합**의 비교로 해석한다.
+- 실행 결과에는 Candidate Recall, 안전 보류, 구조화 출력, token usage, 추정 비용, p50/p95를 기록한다.
+
 ## 아직 수집하지 않는 자료
 
 - LlamaIndex의 parsing, chunking, embedding, vector store, retrieval 평가 문서는 공시 원문 RAG의 데이터 범위와 비교 후보가 정해지는 시점에 최신 공식 문서로 수집한다.
