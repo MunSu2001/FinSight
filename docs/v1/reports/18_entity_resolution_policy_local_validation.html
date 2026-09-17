@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-18 기업 식별 결합 정책 로컬 Validation</title>
+  <style>
+    body { max-width: 960px; margin: 40px auto; padding: 0 20px; color: #1f2937; font: 16px/1.65 system-ui, sans-serif; }
+    h1, h2 { color: #111827; line-height: 1.3; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; }
+    th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .decision { background: #ecfdf5; border-left: 4px solid #059669; padding: 14px 16px; }
+    .warning { background: #fff7ed; border-left: 4px solid #ea580c; padding: 14px 16px; }
+    .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px 16px; }
+    code { background: #f3f4f6; padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <h1>V1-18: 기업 식별 결합 정책 로컬 Validation</h1>
+
+  <p><strong>실행일:</strong> 2026-09-17<br>
+  <strong>실행 노트북:</strong> <code>notebooks/v1/18_entity_resolution_policy_local_validation.ipynb</code><br>
+  <strong>모델:</strong> 로컬 <code>qwen3.6:27b</code>, <code>temperature=0</code>, <code>reasoning=False</code><br>
+  <strong>공통 조건:</strong> OpenDART 기업코드 목록, fuzzy 후보 상위 5개, 임시 cutoff 75, 21개 개발용 policy validation 사례</p>
+
+  <div class="note"><strong>한눈에 보는 결과</strong><br>
+  <strong>목적:</strong> LLM 검색어 확장을 붙였을 때 후보 회수는 높이고 자동 오선택·유효 기업의 NOT_FOUND는 늘리지 않는지 확인한다.<br>
+  <strong>핵심 결과:</strong> B는 Candidate Recall을 11/13(0.846)에서 13/13(1.000)으로 높였고 자동 오선택은 없었다. 하지만 존재하지 않는 <code>한화오션솔루션즈</code>에 <code>한화오션</code> 후보를 추가해, no-target LLM 후보 주입은 1/4(0.250)이었다.<br>
+  <strong>현재 판단:</strong> B를 API holdout에 보낼 정책 구조 후보로 조건부 유지한다. 다만 cutoff 75의 고유사도 미등록명 처리와 LLM 무관 후보 주입을 운영 정책으로 확정하지 않는다.</div>
+
+  <h2>1. 목적과 후보</h2>
+  <p>이 평가는 모델 지식만 비교하지 않는다. <code>raw exact + fuzzy + 재질문 + NOT_FOUND</code>에 LLM 검색어 가설을 결합했을 때, 후보 생성과 상태 결정이 함께 안전하게 동작하는지 확인했다. LLM은 검색어만 제안하고, LLM이 추가한 후보는 항상 <code>NEEDS_CONFIRMATION</code>으로 보낸다.</p>
+  <table>
+    <thead><tr><th>후보</th><th>정책</th></tr></thead>
+    <tbody>
+      <tr><td>A. deterministic</td><td>고유 raw exact는 자동 확정, 그 외 fuzzy 후보와 cutoff 75로 <code>NEEDS_CONFIRMATION</code> 또는 <code>NOT_FOUND</code>를 결정</td></tr>
+      <tr><td>B. local LLM expansion</td><td>A와 동일한 상태 규칙에, 미해결 입력의 Qwen 검색어 가설과 OpenDART 재검증 후보를 추가</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. 정량 결과</h2>
+  <table>
+    <thead><tr><th>지표</th><th>A. deterministic</th><th>B. local LLM expansion</th><th>해석</th></tr></thead>
+    <tbody>
+      <tr><td>Candidate Recall</td><td>11 / 13 = 0.846</td><td><strong>13 / 13 = 1.000</strong></td><td>B가 정답 후보를 2건 더 회수했다.</td></tr>
+      <tr><td>Auto-resolution Success Rate</td><td>7 / 13 = 0.538</td><td>7 / 13 = 0.538</td><td>정식명·공백 표기만 자동 확정한다. 나머지는 의도적으로 사용자 확인 대상이다.</td></tr>
+      <tr><td>Unsafe Selection Rate</td><td>0 / 7 = 0.000</td><td>0 / 7 = 0.000</td><td>두 정책 모두 잘못된 기업을 자동 확정하지 않았다.</td></tr>
+      <tr><td>State Accuracy</td><td>20 / 21 = 0.952</td><td>20 / 21 = 0.952</td><td>두 정책 모두 고유사도 미등록명 1건을 NOT_FOUND 대신 재질문으로 보냈다.</td></tr>
+      <tr><td>Not-found Recall</td><td>3 / 4 = 0.750</td><td>3 / 4 = 0.750</td><td><code>한화오션솔루션즈</code>를 NOT_FOUND로 구분하지 못했다.</td></tr>
+      <tr><td>False Not-found Rate</td><td>0 / 13 = 0.000</td><td>0 / 13 = 0.000</td><td>실제 기업 표현을 잘못 버린 사례는 없었다.</td></tr>
+      <tr><td>Clarification Rate</td><td>11 / 21 = 0.524</td><td>11 / 21 = 0.524</td><td>LLM을 붙여도 이번 사례의 재질문 비율은 변하지 않았다.</td></tr>
+      <tr><td>후보 수 중앙값</td><td>5</td><td>5</td><td>중앙값은 같지만 B의 일부 사례는 8~15개까지 후보가 늘었다.</td></tr>
+      <tr><td>LLM Expansion Contribution</td><td>0 / 13 = 0.000</td><td><strong>2 / 13 = 0.154</strong></td><td>기준선에 없던 정답을 B가 두 건 새로 추가했다.</td></tr>
+      <tr><td>No-target LLM Candidate Injection Rate</td><td>0 / 4 = 0.000</td><td>1 / 4 = 0.250</td><td>B가 미등록명에 실제 기업 후보를 추가한 비율이다. 자동 선택은 막았지만 후보 품질 문제다.</td></tr>
+      <tr><td>LLM Call Rate / 구조화 출력 성공</td><td>0 / 21 / 해당 없음</td><td>10 / 21 = 0.476 / 10 / 10 = 1.000</td><td>Qwen 호출과 구조화 출력 자체는 안정적으로 끝났다.</td></tr>
+      <tr><td>p50 / p95 지연시간</td><td>28ms / 53ms</td><td>41ms / 1,921ms</td><td>B의 p95는 로컬 LLM 호출 경로가 반영된 값이다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. 사례별 해석</h2>
+  <p><strong>B의 실제 회수:</strong> A는 <code>삼성에스디아이</code>와 <code>에스케이이노베이션</code>에서 정답 후보를 만들지 못했다. B는 각각 <code>삼성SDI</code>, <code>SK이노베이션</code>을 제안하고 OpenDART에서 검증해 후보에 포함했다. 두 사례 모두 자동 확정하지 않고 사용자 확인 상태를 유지했다.</p>
+  <p><strong>후보 수 증가:</strong> <code>대한항콩</code>은 5개에서 13개, <code>에스케이이노베이션</code>은 5개에서 15개 후보로 늘었다. 정답 회수에는 도움이 되지만, UX에서는 후보 정렬·표시 개수 정책을 별도로 정해야 한다.</p>
+  <div class="warning"><strong>미등록명 주입:</strong> <code>한화오션솔루션즈</code>는 현재 OpenDART의 등록 법인명이 아닌데, B는 <code>한화오션솔루션즈</code>와 <code>한화오션</code>을 검색어로 제안했다. <code>한화오션</code>은 실제 법인이므로 후보에 들어갔다. 현재 정책은 자동 확정을 금지해 잘못된 데이터 조회를 막았지만, 사용자는 불필요한 확인을 받게 된다.</div>
+  <p><strong>cutoff 한계:</strong> 이 미등록명은 fuzzy 최고점이 cutoff 75 이상이어서 A도 재질문으로 보냈다. 따라서 이 결과는 ‘LLM만의 문제’가 아니라, 실제 기업명과 매우 비슷한 미등록명을 cutoff 하나로 NOT_FOUND와 구분하기 어렵다는 근거다.</p>
+
+  <h2>4. 채택·미채택 판단</h2>
+  <div class="decision"><strong>조건부 유지: B. local LLM expansion 정책 구조</strong><br>
+  B는 Candidate Recall과 LLM 신규 기여를 높였고, 자동 오선택·False Not-found Rate를 높이지 않았다. 따라서 LLM 검색어를 OpenDART 검증 후보에만 추가하고 자동 확정하지 않는 구조는 다음 API holdout에서 검증할 가치가 있다.</div>
+  <p><strong>미채택: A. deterministic 단독 정책</strong><br>
+  A는 빠르고 자동 선택도 안전했지만, 한글 음역 두 건에서 정답 후보를 놓쳤다. 기업명 변형을 후보 단계에서 회수하는 역할로는 부족하다.</p>
+  <div class="note"><strong>최종 정책 선정 보류:</strong> B의 no-target 후보 주입, 양 후보의 Not-found Recall 0.750, 후보 수 증가가 남아 있다. 이 개발용 로컬 validation만으로 운영 정책·cutoff·후보 표시 UX를 확정하지 않는다. 변경하지 않은 정책을 운영 후보 OpenAI API로 독립 holdout에서 1회 검증한다.</div>
+
+  <h2>5. 한계</h2>
+  <ul>
+    <li>이 사례는 입력 문자열을 이전 평가와 구분한 개발용 validation이며, 독립 holdout이 아니다. 결과를 본 뒤 Prompt·cutoff를 조정하면 새 holdout이 필요하다.</li>
+    <li>로컬 Qwen의 결과는 OpenAI API 운영 모델의 품질 근거가 아니다. API holdout에서 동일 정책을 별도로 확인해야 한다.</li>
+    <li>후보는 fuzzy와 LLM의 서로 다른 점수 체계를 합쳐 보여 준다. 현재 후보 수만 측정했으며, 후보 정렬이나 상위 K 사용자 경험은 아직 평가하지 않았다.</li>
+    <li>자동 확정 뒤의 실제 사용자 선택은 오프라인 평가에 없으므로, 사용자 확인 후 최종 Entity Accuracy를 이 결과에서 측정하지 않았다.</li>
+  </ul>
+
+  <h2>6. 재현 정보</h2>
+  <p>Qwen은 사용자가 GPU에 올린 인스턴스를 그대로 사용했다. notebook은 GPU·<code>num_ctx</code>·<code>keep_alive</code> 같은 runner 옵션을 지정하지 않았다. 실행 코드 기준 커밋은 <code>2f93556</code>이다.</p>
+</body>
+</html>
