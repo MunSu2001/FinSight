@@ -50,7 +50,7 @@
       <tr><td>Not-found Recall</td><td>3 / 4 = 0.750</td><td>3 / 4 = 0.750</td><td><code>한화오션솔루션즈</code>를 NOT_FOUND로 구분하지 못했다.</td></tr>
       <tr><td>False Not-found Rate</td><td>0 / 13 = 0.000</td><td>0 / 13 = 0.000</td><td>실제 기업 표현을 잘못 버린 사례는 없었다.</td></tr>
       <tr><td>Clarification Rate</td><td>11 / 21 = 0.524</td><td>11 / 21 = 0.524</td><td>LLM을 붙여도 이번 사례의 재질문 비율은 변하지 않았다.</td></tr>
-      <tr><td>후보 수 중앙값</td><td>5</td><td>5</td><td>중앙값은 같지만 B의 일부 사례는 8~15개까지 후보가 늘었다.</td></tr>
+      <tr><td>내부 후보 풀 중앙값</td><td>5</td><td>5</td><td>exact·fuzzy·LLM을 합친 내부 후보 풀의 크기다. B의 일부 사례는 8~15개까지 늘었지만, 최종 사용자 표시 후보 수는 아직 평가하지 않았다.</td></tr>
       <tr><td>LLM Expansion Contribution</td><td>0 / 13 = 0.000</td><td><strong>2 / 13 = 0.154</strong></td><td>기준선에 없던 정답을 B가 두 건 새로 추가했다.</td></tr>
       <tr><td>No-target LLM Candidate Injection Rate</td><td>0 / 4 = 0.000</td><td>1 / 4 = 0.250</td><td>B가 미등록명에 실제 기업 후보를 추가한 비율이다. 자동 선택은 막았지만 후보 품질 문제다.</td></tr>
       <tr><td>LLM Call Rate / 구조화 출력 성공</td><td>0 / 21 / 해당 없음</td><td>10 / 21 = 0.476 / 10 / 10 = 1.000</td><td>Qwen 호출과 구조화 출력 자체는 안정적으로 끝났다.</td></tr>
@@ -60,7 +60,7 @@
 
   <h2>3. 사례별 해석</h2>
   <p><strong>B의 실제 회수:</strong> A는 <code>삼성에스디아이</code>와 <code>에스케이이노베이션</code>에서 정답 후보를 만들지 못했다. B는 각각 <code>삼성SDI</code>, <code>SK이노베이션</code>을 제안하고 OpenDART에서 검증해 후보에 포함했다. 두 사례 모두 자동 확정하지 않고 사용자 확인 상태를 유지했다.</p>
-  <p><strong>후보 수 증가:</strong> <code>대한항콩</code>은 5개에서 13개, <code>에스케이이노베이션</code>은 5개에서 15개 후보로 늘었다. 정답 회수에는 도움이 되지만, UX에서는 후보 정렬·표시 개수 정책을 별도로 정해야 한다.</p>
+  <p><strong>내부 후보 풀 증가:</strong> <code>대한항콩</code>은 5개에서 13개, <code>에스케이이노베이션</code>은 5개에서 15개로 늘었다. 이는 아직 사용자에게 표시할 목록이 아니라 내부 탐색 결과다. 정답 회수에는 도움이 되지만, 실제 UX에서는 후보 정렬·표시 개수 정책을 별도로 정해야 한다.</p>
   <div class="warning"><strong>미등록명 주입:</strong> <code>한화오션솔루션즈</code>는 현재 OpenDART의 등록 법인명이 아닌데, B는 <code>한화오션솔루션즈</code>와 <code>한화오션</code>을 검색어로 제안했다. <code>한화오션</code>은 실제 법인이므로 후보에 들어갔다. 현재 정책은 자동 확정을 금지해 잘못된 데이터 조회를 막았지만, 사용자는 불필요한 확인을 받게 된다.</div>
   <p><strong>cutoff 한계:</strong> 이 미등록명은 fuzzy 최고점이 cutoff 75 이상이어서 A도 재질문으로 보냈다. 따라서 이 결과는 ‘LLM만의 문제’가 아니라, 실제 기업명과 매우 비슷한 미등록명을 cutoff 하나로 NOT_FOUND와 구분하기 어렵다는 근거다.</p>
 
@@ -75,7 +75,7 @@
   <ul>
     <li>이 사례는 입력 문자열을 이전 평가와 구분한 개발용 validation이며, 독립 holdout이 아니다. 결과를 본 뒤 Prompt·cutoff를 조정하면 새 holdout이 필요하다.</li>
     <li>로컬 Qwen의 결과는 OpenAI API 운영 모델의 품질 근거가 아니다. API holdout에서 동일 정책을 별도로 확인해야 한다.</li>
-    <li>후보는 fuzzy와 LLM의 서로 다른 점수 체계를 합쳐 보여 준다. 현재 후보 수만 측정했으며, 후보 정렬이나 상위 K 사용자 경험은 아직 평가하지 않았다.</li>
+    <li>후보는 fuzzy와 LLM의 서로 다른 점수 체계를 합친 내부 탐색 풀이다. 최종 사용자에게 표시할 후보 정렬·상위 K·표시 개수 UX는 아직 구현하거나 평가하지 않았다.</li>
     <li>자동 확정 뒤의 실제 사용자 선택은 오프라인 평가에 없으므로, 사용자 확인 후 최종 Entity Accuracy를 이 결과에서 측정하지 않았다.</li>
   </ul>
 
