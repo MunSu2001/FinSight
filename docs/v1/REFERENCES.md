@@ -69,6 +69,18 @@ LLM 제안은 후보 생성의 입력일 뿐, 단독으로 기업 또는 `corp_c
 - 모델 품질 외에 API 구조화 출력 방식이 달라질 수 있으므로, 결과는 순수 모델 크기만이 아니라 **모델·제공처 조합**의 비교로 해석한다.
 - 실행 결과에는 Candidate Recall, 안전 보류, 구조화 출력, token usage, 추정 비용, p50/p95를 기록한다.
 
+## V1 LangChain Tool Calling Prompt 평가 레퍼런스
+
+2026-09-21에 확인한 공식 자료다. V1-21은 Tool 실행 결과가 아니라 `bind_tools()` 이후 모델이 반환하는 Tool 호출 요청과 인자를 A/B Prompt 조건에서 비교한다.
+
+| 자료 | 확인한 내용 | 활용 목적 |
+|---|---|---|
+| [LangChain Tools](https://docs.langchain.com/oss/python/langchain/tools) | Tool은 호출 가능한 함수와 입력 스키마를 모델에 제공하는 인터페이스다. | 재무·계산·공시·사업보고서 검색의 함수명, 설명, 인자를 고정해 Prompt만 비교 |
+| [LangChain Models — Tool calling](https://docs.langchain.com/oss/python/langchain/models) | `bind_tools()`로 Tool 스키마를 모델에 연결하면 모델 응답의 `tool_calls`에서 호출 이름과 인자를 읽을 수 있다. | 실제 함수를 실행하지 않고 Tool 선택·인자 생성 품질을 측정 |
+| [LangChain Structured output](https://docs.langchain.com/oss/python/langchain/structured-output) | 스키마 기반 제약은 후속 코드가 읽을 출력 계약을 만들며, provider별 전략이 다를 수 있다. | 이번 단계의 Tool 호출과 이후 Router 구조화 출력 평가의 차이와 경계를 기록 |
+
+이번 비교에서는 **동일 모델, 동일 Tool 정의, 동일 개발 질문**에서 System Prompt만 바꾼다. 이 결과는 Prompt 조건의 Tool 호출 계획 품질이며, 실제 OpenDART 실행·계산·RAG 검색·최종 답변 품질을 의미하지 않는다.
+
 ## 아직 수집하지 않는 자료
 
 - LlamaIndex의 parsing, chunking, embedding, vector store, retrieval 평가 문서는 공시 원문 RAG의 데이터 범위와 비교 후보가 정해지는 시점에 최신 공식 문서로 수집한다.
