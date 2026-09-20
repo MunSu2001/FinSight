@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-21 LangChain Tool Calling Prompt 비교</title>
+  <style>
+    :root { --ink: #18212f; --muted: #586577; --line: #dce3ec; --bg: #f6f8fb; --blue: #155eef; --green: #067647; --amber: #b54708; --red: #b42318; }
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: var(--ink); background: #fff; }
+    h1 { font-size: 2rem; margin: 0 0 8px; } h2 { margin-top: 42px; font-size: 1.3rem; } h3 { margin-top: 26px; font-size: 1.05rem; }
+    .sub { color: var(--muted); margin: 0; } .card { background: var(--bg); border-left: 4px solid var(--blue); padding: 16px 20px; margin: 24px 0; border-radius: 4px; }
+    .decision { border-left-color: var(--green); } .warn { border-left-color: var(--amber); }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: .93rem; } th, td { border: 1px solid var(--line); padding: 10px; vertical-align: top; text-align: left; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; border-radius: 4px; } .good { color: var(--green); font-weight: 700; } .bad { color: var(--red); font-weight: 700; }
+    ul { padding-left: 22px; } .foot { color: var(--muted); font-size: .88rem; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <h1>21. LangChain Tool Calling Prompt 비교</h1>
+  <p class="sub">실행일: 2026-09-21 · 기준 모델: <code>gpt-5.6-luna</code> · 개발 평가 17문항 · 온도 0 · reasoning effort none</p>
+
+  <div class="card decision">
+    <strong>결론: 상세 정책 Prompt B를 다음 Tool 실행·기간 Resolver 평가의 조건부 기준선으로 채택한다.</strong><br>
+    B는 A보다 Tool F1, 완전한 Tool 집합 일치, 계약 인자 일치, 유효 계획률에서 모두 높고 Invalid-plan Rate가 낮았다. 다만 이 17문항은 개발 세트이며, KB금융처럼 금융업 제외를 지키지 못한 사례가 있다. 따라서 B를 최종 운영 Prompt나 통합 workflow로 확정하지 않는다.
+  </div>
+
+  <h2>1. 이 테스트의 목적</h2>
+  <p>사용자 질문을 실제 OpenDART 호출 전에 필요한 작업 요청으로 바꾸는 LangChain <code>bind_tools()</code> 단계의 품질을 비교했다. LLM이 함수명·설명·입력 스키마를 받은 뒤 반환한 <code>tool_calls</code>만 평가했으며, Tool 함수와 OpenDART API는 실행하지 않았다.</p>
+  <p>따라서 이 결과는 “무엇을 호출해야 하는가”의 품질이며, 데이터 조회 정확도·계산 정확도·RAG 검색 품질·최종 답변 품질을 뜻하지 않는다.</p>
+
+  <h2>2. 비교 조건</h2>
+  <table>
+    <tr><th>고정한 조건</th><th>내용</th></tr>
+    <tr><td>모델·호출 조건</td><td><code>gpt-5.6-luna</code>, temperature 0, reasoning effort none, timeout 120초, 재시도 0회</td></tr>
+    <tr><td>Tool 스키마</td><td>재무 조회, 재무 계산, 공시 목록, 사업보고서 근거 검색의 4개 Tool을 A/B에 동일하게 제공</td></tr>
+    <tr><td>질문</td><td>재무 6, 공시 3, 사업보고서 근거 3, 복합 3, 지원 제외 2 = 17개. 정답은 모델 Prompt에 제공하지 않음</td></tr>
+    <tr><td>A</td><td>필요한 Tool만 호출하고 지원 밖 요청에는 호출하지 말라는 짧은 지시</td></tr>
+    <tr><td>B</td><td>기업 추가 금지, 명시/상대 기간 보존, 원천값과 파생지표 구분, 공시/RAG 구분, 금융업·추천 제외를 적은 상세 정책</td></tr>
+  </table>
+
+  <h2>3. 정량 결과</h2>
+  <table>
+    <tr><th>지표</th><th>A. 간단 Prompt</th><th>B. 상세 정책 Prompt</th><th>해석</th></tr>
+    <tr><td>Tool Precision</td><td>0.8462</td><td class="good">0.8846</td><td>B의 불필요 Tool 비율이 더 낮음</td></tr>
+    <tr><td>Tool Recall</td><td>0.9565</td><td class="good">1.0000</td><td>B는 정답 Tool 누락이 없었음</td></tr>
+    <tr><td>Tool F1</td><td>0.8980</td><td class="good">0.9388</td><td>Precision·Recall 균형에서 B 우세</td></tr>
+    <tr><td>Tool-set Exact Match</td><td>14/17 = 0.8235</td><td class="good">15/17 = 0.8824</td><td>질문별 필요한 Tool 집합을 완전히 맞춘 비율</td></tr>
+    <tr><td>Argument Exact Match (계약 필드)</td><td>14/17 = 0.8235</td><td class="good">15/17 = 0.8824</td><td>기업·명시/상대 기간·metric/calculation·statement basis의 일치</td></tr>
+    <tr><td>Invalid-plan Rate</td><td class="bad">3/17 = 0.1765</td><td class="good">1/17 = 0.0588</td><td>지원 밖 호출, 필수 Tool 누락, 중복 호출 등을 invalid로 처리</td></tr>
+    <tr><td>유효 Tool 계획률</td><td>14/17 = 0.8235</td><td class="good">16/17 = 0.9412</td><td>Invalid-plan의 보완 지표</td></tr>
+    <tr><td>API 호출 성공률</td><td>17/17 = 1.0000</td><td>17/17 = 1.0000</td><td>두 조건 모두 모델/API 예외 없음</td></tr>
+    <tr><td>p50 / p95 latency</td><td>1,495 / 1,932 ms</td><td>1,140 / 1,971 ms</td><td>B의 중앙값은 더 빠르나 p95는 39ms 높음; 17회 표본이라 속도 우열로 해석하지 않음</td></tr>
+    <tr><td>입력 / 출력 token</td><td>12,384 / 1,167</td><td>18,742 / 1,295</td><td>B는 상세 정책 때문에 입력 token이 51.3% 많음</td></tr>
+  </table>
+
+  <h3>비용 추정</h3>
+  <p><code>gpt-5.6-luna</code>의 문서상 일반 입력 $0.20/MTok, 출력 $1.20/MTok을 적용하면 A는 약 <strong>$0.00388</strong>, B는 약 <strong>$0.00530</strong>이다. B의 개발 평가 호출 비용은 약 $0.00143(36.8%) 더 높다. 이는 캐시 입력을 0으로 둔 추정이며 가격은 변경될 수 있다. 출처: <a href="https://developers.openai.com/api/docs/models/gpt-5.6-luna">OpenAI 모델 문서</a>.</p>
+
+  <h2>4. 실패 사례와 해석</h2>
+  <table>
+    <tr><th>후보</th><th>사례</th><th>관측 결과</th><th>의미</th></tr>
+    <tr><td>A</td><td>M02: 매출 증가율 + 공시 목록</td><td><code>get_financial_data</code>를 누락하고 계산·공시 Tool만 요청</td><td>원천 매출 없이 성장률 계산을 시도하므로 invalid</td></tr>
+    <tr><td>A</td><td>X01: “삼성전자 주식을 지금 사야 할까?”</td><td>사업보고서 검색 Tool 요청</td><td>매수·매도 추천은 V1 지원 범위 밖인데 호출함</td></tr>
+    <tr><td>A</td><td>X02: KB금융 실적 분석</td><td>재무·계산·사업보고서 Tool 요청</td><td>금융업 분석 제외를 지키지 못함</td></tr>
+    <tr><td>B</td><td>F04: 현대제철 부채비율</td><td>Tool 집합은 맞았으나 계약 인자 불일치</td><td>저장된 표가 Tool 인자 전체를 축약해 정확히 어떤 필드가 다른지는 확인할 수 없음. 다음 실행에서는 실패 Tool 인자를 원문 JSON으로 별도 출력해야 함</td></tr>
+    <tr><td>B</td><td>F06: LG전자·삼성전자 당기순이익 비교</td><td>재무 조회 외에 계산 Tool을 추가 요청</td><td>원시 수치 비교에 계산 Tool이 불필요한 과호출</td></tr>
+    <tr><td>B</td><td>X02: KB금융 실적 분석</td><td>재무·계산 Tool 요청</td><td>상세 Prompt만으로 금융업 제외를 보장하지 못함</td></tr>
+  </table>
+
+  <div class="card warn">
+    <strong>설계상 얻은 결론:</strong> 금융업 여부는 LLM의 일반지식이나 Prompt 준수에 맡길 정책이 아니다. 기업 식별 뒤 OpenDART 업종코드로 판정하는 결정론적 eligibility gate가 필요하다. 이 gate는 다음 실제 Tool 실행 설계에서 검증할 대상이며, 지금 구현하지 않는다.
+  </div>
+
+  <h2>5. 채택과 미채택</h2>
+  <table>
+    <tr><th>후보</th><th>판정</th><th>근거</th></tr>
+    <tr><td>B. 상세 정책 Prompt</td><td class="good">조건부 채택</td><td>모든 핵심 Tool 선택 지표에서 A보다 높고 invalid plan이 3건에서 1건으로 줄었다. 다음 실제 Tool 실행 평가의 기준선으로 사용한다.</td></tr>
+    <tr><td>A. 간단 Prompt</td><td class="bad">미채택</td><td>복합 질문에서 원천 재무 Tool을 누락했고, 두 지원 제외 질문 모두에서 Tool을 호출했다. B보다 품질상 우세한 지표가 없다.</td></tr>
+  </table>
+
+  <h2>6. 한계와 다음 판단</h2>
+  <ul>
+    <li>17개 개발 질문 한 번의 비교이므로 B의 일반화 성능이나 운영 안정성을 보장하지 않는다.</li>
+    <li>사업보고서 주제·공시 키워드의 의미적 적합성은 이 평가의 Exact Match 대상이 아니다. 해당 품질은 실제 공시/RAG 평가에서 측정한다.</li>
+    <li>실제 Tool 실행·OpenDART 응답·기간 가용성·CFS/OFS 대체·계산·최종 답변은 아직 검증하지 않았다.</li>
+    <li>Router-only 비교를 추가로 세분화하지 않는다. B를 임시 기준선으로 두고 실제 Tool 실행·기간 Resolver 평가를 진행한 뒤, 변경된 구조 전체를 독립 holdout에서 재확인한다.</li>
+  </ul>
+
+  <p class="foot">관련 레퍼런스: <a href="https://docs.langchain.com/oss/python/langchain/tools">LangChain Tools</a>, <a href="https://docs.langchain.com/oss/python/langchain/models">LangChain Models</a>. 결과는 2026-09-21 저장 notebook 출력 기준이다.</p>
+</body>
+</html>

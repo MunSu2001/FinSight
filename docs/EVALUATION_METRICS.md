@@ -71,6 +71,7 @@ LLM 또는 workflow가 질문을 분석해 필요한 Tool과 인자를 선택하
 | Tool Precision | 호출한 Tool 중 실제로 필요한 Tool 수 / 호출한 Tool 수 | 재무·계산 2개만 필요하지만 공시 Tool까지 3개 호출하면 2/3 | 낮으면 불필요한 호출·비용이 많음 | Tool 집합 기준으로 계산 |
 | Tool Recall | 정답 Tool 중 실제로 호출한 Tool 수 / 정답 Tool 수 | 재무·계산·RAG가 필요할 때 재무·계산만 호출하면 2/3 | 낮으면 필요한 조사 단계를 빠뜨림 | Tool 미호출이 최종 근거 누락으로 이어질 수 있음 |
 | Tool F1 | Tool Precision과 Recall의 조화평균 | Precision 2/3, Recall 2/3이면 F1도 2/3 | 둘 사이 균형을 한 값으로 봄 | Precision·Recall을 함께 보고 해석 |
+| Tool-set Exact Match | 질문별로 중복을 제거한 실제 Tool 집합이 정답 Tool 집합과 완전히 같은 사례 수 / 전체 사례 수 | 재무·계산이 정답인 10문항 중 8문항에서 두 Tool만 정확히 요청하면 0.8 | 높을수록 필요한 Tool 누락과 불필요 Tool 추가가 동시에 적음 | 호출 순서는 보지 않는다. 같은 Tool을 여러 번 호출한 문제는 Invalid-plan Rate 또는 Tool-call Count로 별도 기록한다. |
 | Argument Exact Match | Tool 인자(기업, 연도, 재무제표 기준 등)가 정답과 모두 일치한 호출 수 / 평가 호출 수 | 삼성전자·2024·CFS가 모두 맞은 호출 8/10이면 0.8 | 높을수록 올바른 데이터를 조회함 | 일부 인자만 중요한 경우 필드별 정확도를 추가 기록 |
 | Over-call Rate | 정답에 없는 Tool 호출 수 / 전체 Tool 호출 수 | 4번 호출 중 불필요한 웹/공시 Tool 1번이면 0.25 | 낮을수록 불필요한 조사·비용이 적음 | 필요한 재검증 호출은 오류로 취급하지 않도록 정책 명시 |
 | Invalid-plan Rate | 허용하지 않은 Tool 순서, 누락 인자, 지원 밖 요청 등 실행 불가능 계획 수 / 전체 계획 수 | 20개 계획 중 기업명 없이 재무 Tool을 호출한 계획이 2개면 0.1 | 낮을수록 workflow가 안전함 | 구조화 출력 스키마 검증과 함께 사용 |
