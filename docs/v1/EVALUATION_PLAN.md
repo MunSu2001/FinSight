@@ -50,7 +50,7 @@ V1 평가는 LLM 답변의 자연스러움만 보지 않는다. FinSight가 질�
 | 대상 | 설계 또는 비교 대상 | 핵심 지표 |
 |---|---|---|
 | 기업 식별·대상 판정 | 기업명 해석, `corp_code`, 복수 후보 확인, 상장 상태·비금융·데이터 가용성 판정 | Entity Accuracy, Candidate Recall@K, Unsafe Selection Rate, Abstention Accuracy |
-| 기간 Resolver | 명시 연도, 최근 N년, 다기업 공통 사업연도 정책 | Period Exact Match, Common-Year Validity, Limitation Accuracy |
+| 기간 Resolver | 명시 연도, 최근 N년, 다기업 공통 사업연도 정책 | Requested-year Count Satisfaction, Available-year Validity Rate, Common-Year Validity, Limitation Accuracy |
 | 재무 데이터 계약 | 계정 매핑, CFS 우선/OFS 대체, 단위·결측 처리 | Field Accuracy, Statement-Basis Accuracy, Missing-data Handling Accuracy |
 | 계산 | 공식·단위·위험 계산 처리 | Calculation Accuracy, Unsafe-calculation Rate |
 | Router·Tool | Prompt, structured schema, Tool 설명, 분기 방식 | Route Exact Match, Tool Precision/Recall/F1, Argument Exact Match, Over-call Rate, Invalid-plan Rate |
