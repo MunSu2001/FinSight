@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-22 기간 Resolver 가용성 정책 비교</title>
+  <style>
+    :root { --ink: #18212f; --muted: #586577; --line: #dce3ec; --bg: #f6f8fb; --blue: #155eef; --green: #067647; --amber: #b54708; --red: #b42318; }
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: var(--ink); background: #fff; }
+    h1 { font-size: 2rem; margin: 0 0 8px; } h2 { margin-top: 42px; font-size: 1.3rem; } h3 { margin-top: 26px; font-size: 1.05rem; }
+    .sub { color: var(--muted); margin: 0; } .card { background: var(--bg); border-left: 4px solid var(--blue); padding: 16px 20px; margin: 24px 0; border-radius: 4px; }
+    .decision { border-left-color: var(--green); } .warn { border-left-color: var(--amber); }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: .93rem; } th, td { border: 1px solid var(--line); padding: 10px; vertical-align: top; text-align: left; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; border-radius: 4px; } .good { color: var(--green); font-weight: 700; } .bad { color: var(--red); font-weight: 700; }
+    ul { padding-left: 22px; } .foot { color: var(--muted); font-size: .88rem; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <h1>22. 기간 Resolver 가용성 정책 비교</h1>
+  <p class="sub">실행일: 2026-10-01 · 기준연도: 2026 · OpenDART 사업보고서(<code>11011</code>) · 5개 개발 사례</p>
+
+  <div class="card decision">
+    <strong>결론: B를 다음 재무 Tool 평가의 조건부 기간 정책으로 채택한다.</strong><br>
+    사업보고서가 없는 2026년을 명시한 요청에서 B는 연도를 선택하지 않고 <code>LIMITATION</code>을 반환했다. A는 2026년을 선택한 뒤 <code>PARTIAL</code>로 표시했다. 다른 4개 사례에서는 두 후보가 같은 연도를 선택했다. 따라서 이 결과가 보여 주는 B의 이점은 <em>데이터 부재를 명확히 알리는 처리</em>이며, 과거 공시가 빠진 구간에서 더 나은 연도를 찾는 능력은 아직 비교되지 않았다.
+  </div>
+
+  <h2>1. 목적과 비교 조건</h2>
+  <p>사용자의 <code>최근 N년</code> 또는 명시 연도 요청을 OpenDART에서 실제로 조회할 사업연도로 바꾸는 정책을 비교했다. 여기서 Resolver는 기간을 연도 목록으로 결정하는 코드다. 이번 노트북은 LLM을 호출하지 않았으며, Tool 선택·계산·최종 답변도 평가하지 않았다.</p>
+  <table>
+    <tr><th>항목</th><th>A. 달력 기준</th><th>B. 가용성·공통연도 기준</th></tr>
+    <tr><td>최근 N년</td><td>2026년을 기준으로 2025년부터 N개 달력 연도를 선택</td><td>최신 연도부터 OpenDART 재무 행을 확인해 N개를 선택</td></tr>
+    <tr><td>다기업 비교</td><td>기업별 공시 가용성을 고려하지 않고 같은 달력 연도 선택</td><td>모든 대상 기업에 재무 행이 있는 공통 연도만 선택</td></tr>
+    <tr><td>명시 연도</td><td>요청한 연도를 그대로 선택</td><td>재무 행이 없으면 연도 대신 <code>LIMITATION</code> 반환</td></tr>
+    <tr><td>공통 데이터 정책</td><td colspan="2">CFS 우선, CFS 전체 부재를 뜻하는 OpenDART <code>013</code>일 때만 OFS 전체 대체. 빈 재무 행이나 API 오류는 사용 가능한 연도로 세지 않음</td></tr>
+  </table>
+  <p>평가셋은 삼성전자, SK하이닉스, 에이피알, 리노공업을 사용한 5개 요청이다. 정답 상태는 실행 전에 노트북에 기록했다. 두 후보는 동일한 OpenDART 조회 결과 캐시를 공유하므로 데이터 조건은 같지만, 실행 순서상 후보별 지연시간 비교는 할 수 없다.</p>
+
+  <h2>2. 실제 결과</h2>
+  <table>
+    <tr><th>사례</th><th>A가 선택한 연도·상태</th><th>B가 선택한 연도·상태</th><th>확인한 사실</th></tr>
+    <tr><td>P01 삼성전자 최근 3년</td><td>2025·2024·2023, OK</td><td>2025·2024·2023, OK</td><td>3개 연도 모두 CFS 조회 가능</td></tr>
+    <tr><td>P02 삼성전자·SK하이닉스 최근 3년</td><td>2025·2024·2023, OK</td><td>2025·2024·2023, OK</td><td>각 연도에 두 기업 모두 CFS 조회 가능</td></tr>
+    <tr><td>P03 삼성전자·에이피알 최근 3년</td><td>2025·2024·2023, OK</td><td>2025·2024·2023, OK</td><td>에이피알도 세 연도의 CFS가 있어 후보 차이가 나타나지 않음</td></tr>
+    <tr><td>P04 리노공업 2024년</td><td>2024, OK</td><td>2024, OK</td><td>CFS 부재 뒤 OFS로 대체되어 재무 행 102개 조회</td></tr>
+    <tr><td>P05 삼성전자 2026년</td><td>2026, PARTIAL</td><td>선택 연도 없음, LIMITATION</td><td>OpenDART <code>013</code>으로 해당 사업보고서 재무 행 없음</td></tr>
+  </table>
+
+  <h3>정량 지표</h3>
+  <table>
+    <tr><th>지표</th><th>A</th><th>B</th><th>읽는 방법</th></tr>
+    <tr><td>Available-year Validity Rate</td><td>16/17 = 0.9412</td><td class="good">16/16 = 1.0000</td><td>선택한 기업·연도 쌍 중 실제 조회 가능한 비율. B는 P05에서 연도를 선택하지 않았으므로 분모가 하나 작다.</td></tr>
+    <tr><td>Requested-year Count Satisfaction</td><td>3/3 = 1.0000</td><td>3/3 = 1.0000</td><td>최근 3년 요청 세 건에서 모두 3개 연도를 선택했다.</td></tr>
+    <tr><td>Common-year Validity</td><td>2/2 = 1.0000</td><td>2/2 = 1.0000</td><td>다기업 사례 두 건에서 선택 연도가 모두 양쪽 기업에 존재했다.</td></tr>
+    <tr><td>Resolver Status Contract Match</td><td>4/5 = 0.8000</td><td class="good">5/5 = 1.0000</td><td>사전에 정한 허용 상태와의 일치. A의 불일치는 P05 한 건이다.</td></tr>
+    <tr><td>Limitation Accuracy</td><td>0/1 = 0.0000</td><td class="good">1/1 = 1.0000</td><td>제한 표시가 필요한 P05 한 건에 대한 결과다. 표본이 1건이므로 일반화할 수 없다.</td></tr>
+    <tr><td>탐색 중 API 오류 사례</td><td>0건</td><td>0건</td><td><code>013</code> 데이터 부재는 네트워크/API 장애와 구분했다.</td></tr>
+  </table>
+
+  <div class="card warn">
+    <strong>지표 해석 주의:</strong> B의 가용성 1.0은 조회 가능한 연도만 남긴 정책과 P05의 선택 보류를 반영한다. B가 누락된 과거 연도를 더 잘 찾아냈다는 뜻은 아니다. P01~P04에서 두 후보는 같은 연도를 선택했고, P03에서도 세 연도가 모두 실제로 존재했다.
+  </div>
+
+  <h2>3. 호출 시간과 자원</h2>
+  <p>저장된 로그에는 고유한 기업·연도 확인 11건이 있다. 그중 리노공업 2024년과 삼성전자 2026년은 CFS의 <code>013</code> 뒤 OFS까지 확인했으므로, 코드 경로상 재무제표 API 요청은 13회다. 기업코드 조회는 기업별 캐시를 사용했다. LLM 호출·토큰 비용은 0이고, OpenDART의 별도 과금액은 측정하지 않았다.</p>
+  <p>기록된 기업·연도 확인 시간은 약 130~2,717ms다. 최초 기업 조회에는 기업코드 ZIP 다운로드 시간이 포함되고, 두 후보는 조회 캐시를 공유했다. 따라서 이 로그로 A와 B의 운영 지연시간 우열을 판단하지 않는다. 메모리·CPU 사용량도 측정하지 않았다.</p>
+
+  <h2>4. 채택·미채택 이유와 다음 확인</h2>
+  <table>
+    <tr><th>후보</th><th>판정</th><th>근거와 남은 조건</th></tr>
+    <tr><td>B. 가용성·공통연도 기준</td><td class="good">조건부 채택</td><td>요청한 연도에 데이터가 없을 때 <code>LIMITATION</code>을 반환했고, 5개 사례에서 잘못된 연도 선택이 없었다. 실제 과거 누락 연도·공통 연도 부족·API 장애 상황은 이후 재무 Tool 평가에 포함해야 한다.</td></tr>
+    <tr><td>A. 달력 기준 그대로 사용</td><td class="bad">미채택</td><td>P05에서 조회 불가능한 2026년을 선택하고 필요한 제한 상태를 반환하지 못했다. 다만 A에 별도 가용성 확인 단계를 추가한 대안은 이번에 평가하지 않았으므로 그 대안까지 열등하다고 판단하지 않는다.</td></tr>
+  </table>
+  <p>다음 재무 Tool 평가에서 실제 공시 이력이 끊긴 연도와 다기업 공통연도 부족 사례를 한 번에 포함해 B의 탐색 이점을 확인한다. API 오류와 데이터 부재를 구분하는 실패 경로도 확인한다. 이 다섯 사례만으로 V1 전체의 기간 처리 성능이나 사용자 질문 해석 품질을 확정하지 않는다.</p>
+
+  <p class="foot">근거: <a href="../../../notebooks/v1/22_period_resolver_availability_comparison.ipynb">22번 노트북의 저장된 실행 출력</a>(2026-10-01), <a href="../../EVALUATION_METRICS.md">평가 지표 정의</a>, <a href="../REFERENCES.md">OpenDART 공식 자료 링크를 정리한 V1 레퍼런스</a>. 결론은 이 실행에서 관측한 5개 사례에 한정한다.</p>
+</body>
+</html>
