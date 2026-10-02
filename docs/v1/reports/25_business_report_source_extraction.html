@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-25 사업보고서 원문 추출 비교</title>
+  <style>
+    :root { --ink: #18212f; --muted: #586577; --line: #dce3ec; --bg: #f6f8fb; --blue: #155eef; --green: #067647; --amber: #b54708; }
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: var(--ink); }
+    h1 { font-size: 2rem; margin: 0 0 8px; } h2 { margin-top: 38px; font-size: 1.3rem; }
+    .sub, .foot { color: var(--muted); } .card { background: var(--bg); border-left: 4px solid var(--blue); padding: 15px 19px; margin: 22px 0; border-radius: 4px; }
+    .decision { border-left-color: var(--green); } .caution { border-left-color: var(--amber); }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: .94rem; }
+    th, td { border: 1px solid var(--line); padding: 9px; text-align: left; vertical-align: top; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; } ul { padding-left: 22px; }
+  </style>
+</head>
+<body>
+  <h1>25. 사업보고서 원문 추출 비교</h1>
+  <p class="sub">사용자 저장 실행 출력 확인: 2026-10-02 · 삼성전자·리노공업의 2024 사업연도 사업보고서</p>
+
+  <div class="card">
+    <strong>목적:</strong> OpenDART의 사업보고서 ZIP에서 XML을 꺼내 텍스트로 정리할 때, 제목·표 경계를 버리는 A와 표시하는 B의 출력 형태와 기본 실행 가능성을 확인한다. 두 후보는 <em>같은 BeautifulSoup <code>lxml-xml</code> 파서</em>를 사용한다. 이는 서로 다른 XML 파서나 RAG 검색 성능의 비교가 아니다.
+  </div>
+  <div class="card decision">
+    <strong>간단한 결과·결정:</strong> 두 보고서 모두 API·ZIP·텍스트 추출 셀에서 저장된 실행 오류가 없고, 출력 예시의 한글은 읽을 수 있었다. 사용자는 제목과 표 경계를 일부 남기는 <strong>B를 후속 텍스트 정리 기준선으로 채택</strong>했다. A는 기본 정리 방식으로 미채택했다. 원문 전체의 무손실성이나 검색 성능에서 B가 우세하다는 결론은 아니다.
+  </div>
+
+  <h2>1. 입력과 비교 조건</h2>
+  <table>
+    <tr><th>항목</th><th>조건</th></tr>
+    <tr><td>문서 선택</td><td>2025년 접수일 범위의 사업보고서 최종 제출본 중 보고서명에 <code>2024.12</code>가 있는 문서. 사업연도와 접수연도를 구별한다.</td></tr>
+    <tr><td>원문</td><td>공시 목록의 접수번호로 OpenDART <code>document.xml</code>을 호출하고 ZIP 안에서 가장 큰 XML을 실험용 규칙으로 선택한다. 첨부 XML도 존재하므로 이 규칙을 모든 문서의 본문 식별 정책으로 일반화하지 않는다.</td></tr>
+    <tr><td>고정 조건</td><td>같은 XML 파일, 같은 <code>BeautifulSoup(..., 'lxml-xml')</code> 파스 트리. LLM·OCR·LlamaIndex·청킹·embedding·retrieval은 실행하지 않음.</td></tr>
+    <tr><td>A</td><td><code>get_text(' ', strip=True)</code>로 읽을 수 있는 글자를 공백으로 연결해 한 줄로 평탄화.</td></tr>
+    <tr><td>B</td><td>같은 파스 트리의 글자를 순회하면서 <code>TITLE/SUBTITLE</code> 앞에 제목 표시, <code>TR</code>에 줄바꿈, <code>TD/TH</code> 사이에 구분자를 추가.</td></tr>
+  </table>
+
+  <h2>2. 저장된 실행 결과</h2>
+  <table>
+    <tr><th>기업</th><th>접수번호·선택 XML</th><th>XML 크기</th><th>A 글자 수·줄 수</th><th>B 글자 수·줄 수</th><th>추출 시간 A/B</th></tr>
+    <tr><td>삼성전자</td><td><code>20250311001085</code><br><code>20250311001085.xml</code></td><td>6,298,681 byte</td><td>41,453자 · 1줄</td><td>44,808자 · 590줄</td><td>0.00 / 0.03초</td></tr>
+    <tr><td>리노공업</td><td><code>20250318000229</code><br><code>20250318000229.xml</code></td><td>1,559,021 byte</td><td>149,973자 · 1줄</td><td>159,565자 · 3,115줄</td><td>0.02 / 0.06초</td></tr>
+  </table>
+  <p>B의 글자 수 증가는 제목·표 표시 문자와 공백 차이를 포함한다. 더 많은 원문을 정확히 추출했다는 뜻이 아니다. 시간은 각 후보의 단일 실행값이며, B가 일반적으로 느리거나 빠르다는 판단 근거가 아니다. 원문 다운로드는 삼성전자 0.24초, 리노공업 0.14초로 기록됐고, ZIP·XML 크기와 메모리 최대 사용량의 전체 비용은 측정하지 않았다. LLM 호출·토큰 비용은 0이다.</p>
+
+  <h2>3. 출력 해석과 한계</h2>
+  <ul>
+    <li>삼성전자 예시에서 B는 주요 제품 표의 부문·제품 셀을 줄과 구분자로 나눠 A보다 사람이 읽기 쉽게 보였다. 제목 예시에는 <code>II. 사업의 내용</code> 등이 확인됐다.</li>
+    <li>리노공업의 <code>사업의 내용</code>·<code>위험</code> 키워드 첫 일치는 목차였다. 검색 결과가 실제 위험관리 본문을 찾았다는 뜻이 아니며, 목차 잡음은 A/B 모두에 남는다.</li>
+    <li>두 방식이 같은 XML 파스 트리에서 출발하지만, 원문 전체 텍스트의 누락·중복·순서 보존을 독립적으로 대조하지 않았다. 출력 일부에서 한글 깨짐이 보이지 않은 것과 무손실 추출은 다르다.</li>
+    <li>B의 제목·표 표시가 계층적 청킹이나 retrieval 정확도를 개선하는지는 미측정이다. 이후 청커가 원본 XML 구조를 직접 쓰면 이 중간 텍스트 A/B 차이를 사용하지 않을 수도 있다.</li>
+  </ul>
+  <div class="card caution">
+    <strong>경계:</strong> B는 <em>텍스트 표현의 기준선</em>이지 XML 파서·청킹·검색 파이프라인의 최종 채택이 아니다. 특히 ZIP 안의 가장 큰 XML을 본문으로 간주하는 규칙과 본문 누락 가능성은 다른 기업·문서에서 다시 확인해야 한다.
+  </div>
+
+  <h2>4. 채택·미채택 및 다음 검증</h2>
+  <table>
+    <tr><th>후보</th><th>결정</th><th>이유와 조건</th></tr>
+    <tr><td>A. 한 줄 평탄화</td><td>기본값 미채택</td><td>간단하고 이번 예시의 글자는 읽을 수 있지만, 제목·표 경계를 텍스트에 남기지 않는다. 오류 진단이나 단순 기준선으로는 유지할 수 있다.</td></tr>
+    <tr><td>B. 제목·표 경계 표시</td><td>후속 추출 기준선 채택</td><td>동일 원문에서 사람이 확인할 수 있는 구조 표시를 더 남기며, 이번 두 문서에서는 저장된 실행 오류가 없었다. 검색 품질 향상·무손실성은 아직 주장하지 않는다.</td></tr>
+  </table>
+  <p>별도의 대규모 파싱 평가 단계는 만들지 않는다. 다만 검색용 인덱스에 넣기 <strong>전에</strong> 문서별 접수번호·선택 XML·비어 있지 않은 본문·대표 본문 위치를 확인하고, 원문 구조의 주요 텍스트가 B에서 누락되지 않았는지 소수의 근거 구간을 대조하는 가벼운 입력 검증을 둔다. 이후 품질 선택은 독립 정답 문단을 가진 질문셋으로 청킹·retrieval 후보의 Recall@K·MRR·nDCG@K를 비교해 결정한다. 이 보고서는 그 지표의 결과가 아니다.</p>
+
+  <p class="foot">근거: <a href="../../../notebooks/v1/25_business_report_source_extraction.ipynb">25번 노트북의 저장된 출력</a>, <a href="https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&amp;apiId=2019003">OpenDART 공시서류원본파일 가이드</a>, <a href="https://www.crummy.com/software/BeautifulSoup/bs4/doc/">Beautiful Soup 공식 문서</a>. 채택 범위는 이번 두 문서의 후속 텍스트 표현 기준선으로 한정한다.</p>
+</body>
+</html>
