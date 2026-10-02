@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-24 공시 목록 정책·데이터 계약 비교</title>
+  <style>
+    :root { --ink: #18212f; --muted: #586577; --line: #dce3ec; --bg: #f6f8fb; --blue: #155eef; --green: #067647; --amber: #b54708; }
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: var(--ink); background: #fff; }
+    h1 { font-size: 2rem; margin: 0 0 8px; } h2 { margin-top: 42px; font-size: 1.3rem; } h3 { margin-top: 26px; font-size: 1.05rem; }
+    .sub { color: var(--muted); margin: 0; } .card { background: var(--bg); border-left: 4px solid var(--blue); padding: 16px 20px; margin: 24px 0; border-radius: 4px; }
+    .decision { border-left-color: var(--green); } .warn { border-left-color: var(--amber); }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: .93rem; } th, td { border: 1px solid var(--line); padding: 10px; vertical-align: top; text-align: left; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; border-radius: 4px; } .good { color: var(--green); font-weight: 700; }
+    ul { padding-left: 22px; } .foot { color: var(--muted); font-size: .88rem; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <h1>24. 공시 목록 정책·데이터 계약 비교</h1>
+  <p class="sub">실행일: 2026-10-02 · OpenDART 공시검색 API · 삼성전자·SK하이닉스·리노공업 · 접수일 2024-01-01~2024-12-31</p>
+
+  <div class="card">
+    <strong>목적:</strong> 공시 목록을 재무제표의 사업연도와 별개인 <em>접수일 기간</em>으로 조회할 때, 전체 제출본(<code>last_reprt_at=N</code>)과 최종보고서만(<code>Y</code>)의 결과 차이를 확인한다. 동시에 페이지 누락·다른 회사 혼입·범위 밖 접수일·잘못된 접수번호가 없는지 검사한다. 이 검사가 필요한 이유는 목록이 불완전하거나 이전 제출본을 최종본으로 오인하면 이후 원문 근거 선택도 흔들리기 때문이다.
+  </div>
+  <div class="card decision">
+    <strong>간단한 결과:</strong> 세 기업 모두 <code>Y</code> 결과가 <code>N</code>의 부분집합이었다. 전체 445건 중 Y에는 417건이 남고 28건은 N에만 있었다. 6개 조회의 전 페이지·건수 계약은 모두 맞았다. V1의 기존 “최종본 중심 목록” 기본값 Y는 <strong>조건부 유지</strong>하되, 이를 “2024년에 접수된 모든 공시 이력”이라고 설명해서는 안 된다.
+  </div>
+
+  <h2>1. 비교 조건과 가설</h2>
+  <table>
+    <tr><th>항목</th><th>고정 또는 비교 조건</th></tr>
+    <tr><td>기업·기간</td><td>세 기업의 OpenDART <code>corp_code</code>, 동일 접수일 범위 20240101~20241231</td></tr>
+    <tr><td>바꾼 값</td><td>A: <code>last_reprt_at=N</code>(정정보고서를 포함한 제출본 전체) / B: <code>Y</code>(최종보고서만). 그 밖의 API 인자는 동일</td></tr>
+    <tr><td>수집 방식</td><td>페이지당 100건, API <code>total_page</code>까지 조회. 행 수·고유 접수번호 수가 <code>total_count</code>와 다르면 성공으로 취급하지 않음</td></tr>
+    <tr><td>가설</td><td>Y는 N보다 적거나 같은 접수번호를 반환하고, 최종본 중심 화면에는 적합하다. 단, N에서만 보이는 과거 제출 이력을 잃으므로 “전체 접수 이력” 요청에는 적합하지 않을 수 있다.</td></tr>
+  </table>
+  <p><strong>주의:</strong> 여기서 2024년은 <code>rcept_dt</code>의 접수연도다. 2024 사업연도 보고서를 뜻하지 않는다. 공시의 중요도 판단, 본문 검색, LLM Tool 선택과 최종 답변은 이번 실험에 포함하지 않았다.</p>
+
+  <h2>2. N/Y 실제 결과</h2>
+  <table>
+    <tr><th>기업</th><th>N: 전체 제출본</th><th>Y: 최종보고서만</th><th>N에만 있음</th><th>Y에만 있음</th><th>페이지(N/Y)</th></tr>
+    <tr><td>삼성전자</td><td>284건</td><td>264건</td><td>20건</td><td>0건</td><td>3 / 3</td></tr>
+    <tr><td>SK하이닉스</td><td>138건</td><td>133건</td><td>5건</td><td>0건</td><td>2 / 2</td></tr>
+    <tr><td>리노공업</td><td>23건</td><td>20건</td><td>3건</td><td>0건</td><td>1 / 1</td></tr>
+    <tr><th>합계</th><th>445건</th><th>417건</th><th>28건</th><th>0건</th><th>6 / 6</th></tr>
+  </table>
+  <p>N에만 있는 접수번호의 보고서명에는 삼성전자 <code>연결재무제표기준영업(잠정)실적(공정공시)</code>, SK하이닉스 <code>[기재정정]증권신고서(채무증권)</code>, 리노공업 <code>현금ㆍ현물배당결정</code> 등이 보였다. 즉 N/Y 차이는 실제 결과에 존재한다. 다만 제목과 집합 차이만으로 개별 문서가 왜 제외됐는지, 어떤 정정 문서와 연결되는지는 검증하지 않았다.</p>
+  <div class="card warn">
+    <strong>가장 중요한 해석:</strong> Y의 28건 감소를 “불필요한 공시 28건 제거”라고 말할 수 없다. 공식 API의 최종보고서 필터가 적용된 결과일 뿐이다. 사용자가 특정 시점의 제출 이력·정정 과정을 조사하려면 N이 필요할 수 있다. 반대로 최종본만 보여 주려는 화면에서 N을 그대로 쓰면 여러 제출본을 현재 최종 근거처럼 혼동할 위험이 있다.
+  </div>
+
+  <h2>3. 데이터 계약과 정량 지표</h2>
+  <table>
+    <tr><th>지표·확인 항목</th><th>실측</th><th>해석 경계</th></tr>
+    <tr><td>Date-filter Accuracy</td><td class="good">862/862</td><td>여섯 조회의 반환 행 모두 요청 접수일 범위 안이다.</td></tr>
+    <tr><td>Company-filter Accuracy</td><td class="good">862/862</td><td>반환 행 모두 요청 <code>corp_code</code>와 일치한다.</td></tr>
+    <tr><td>Receipt-ID Format Rate</td><td class="good">862/862</td><td>접수번호가 14자리 숫자 형식이다. 원문 뷰어의 실제 접근 성공을 뜻하지 않는다.</td></tr>
+    <tr><td>Page-count Consistency</td><td class="good">6/6</td><td>각 조회의 수집 행 수·고유 접수번호 수·API <code>total_count</code>가 같다.</td></tr>
+    <tr><td>API 상태</td><td>12개 페이지 요청 모두 정상</td><td><code>NO_DATA</code>, 한도 초과 또는 페이지 오류는 관측되지 않았다.</td></tr>
+  </table>
+  <p>862는 N과 Y의 반환 행을 <strong>합산한 분모</strong>이며, 고유 공시 862건이라는 뜻이 아니다. Page-count Consistency도 OpenDART 응답 메타데이터와 수집 결과의 내부 일관성이다. 독립 정답 공시 목록을 수집하지 않았으므로 목록 Precision·Recall이나 “실제 모든 공시를 찾았다”는 결론은 낼 수 없다. 원문 링크는 공식 가이드의 <code>rcpNo</code> 형식으로 구성했으며 실제 열림 여부는 확인하지 않았다.</p>
+
+  <h2>4. 호출 시간과 자원</h2>
+  <p>N과 Y는 각각 6개 페이지 API 요청을 사용했다. 기록된 공시검색 API 응답시간 합은 N 약 934ms, Y 약 1,014ms(전체 약 1,948ms)이며, 페이지 요청 중앙값은 각각 약 154ms와 173ms다. 호출 수가 같고 단일 실행이므로 이 차이를 정책의 속도 우열로 해석하지 않는다. 기업코드 ZIP 조회 시간은 이 수치에 포함되지 않는다. LLM 호출·토큰 사용량은 0이고 RAM·CPU peak, OpenDART 과금액은 측정하지 않았다.</p>
+
+  <h2>5. 채택·미채택과 남은 질문</h2>
+  <table>
+    <tr><th>정책</th><th>V1 판단</th><th>이유·조건</th></tr>
+    <tr><td>B. 최종보고서만(<code>Y</code>)</td><td class="good">기존 기본값 조건부 유지</td><td>V1 요구사항의 최종본 중심 목록에 맞고, 이번 세 기업에서 Y는 N의 부분집합이었다. 결과 화면에 “최종보고서만”을 명시해야 한다. 문서별 정정 계보와 다른 기업·기간의 동작은 별도로 확인해야 한다.</td></tr>
+    <tr><td>A. 전체 제출본(<code>N</code>)</td><td>기본값 미채택</td><td>최종본 중심 화면에 이전 제출본까지 함께 노출한다. 다만 과거 접수 이력·정정 과정을 조사하는 요청에는 필요한 별도 모드일 수 있으므로 N 자체를 폐기하지 않는다.</td></tr>
+  </table>
+  <p>이 판단은 V1의 기존 범위를 유지한 것이며, 사용자 요청에 따라 N 모드를 제공할지 여부는 이번 결과만으로 확정하지 않는다. 사업보고서 원문 RAG로 넘어갈 때는 목록의 <code>rcept_no</code>를 문서 선택에 어떻게 사용할지 별도 근거·평가가 필요하다.</p>
+
+  <p class="foot">근거: <a href="../../../notebooks/v1/24_disclosure_list_policy_contract.ipynb">24번 노트북의 저장된 실행 출력</a>(2026-10-02), <a href="https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&amp;apiId=2019001">OpenDART 공시검색 개발가이드</a>, <a href="../../EVALUATION_METRICS.md">지표 정의</a>, <a href="../REQUIREMENTS.md">V1 요구사항</a>. 결과는 세 기업·2024년 접수일 기간의 이번 조회에 한정한다.</p>
+</body>
+</html>
