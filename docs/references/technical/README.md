@@ -1,6 +1,6 @@
 # 기술 레퍼런스
 
-확인일: 2026-10-01
+확인일: 2026-10-03
 
 여기에는 실제로 사용하는 데이터 API와 프레임워크의 **공식 문서**를 기록한다. 패키지 버전이나 기능 지원은 변할 수 있으므로, 새 테스트·구현 직전에 해당 공식 문서를 다시 확인한다.
 
@@ -25,3 +25,13 @@
 - 패키지 설치·모델 변경·새 API 연결은 각 공식 문서와 현재 환경의 호환성을 다시 확인한 뒤 진행한다.
 
 V1에서 이미 사용한 상세 API 제한과 결정은 [V1 REFERENCES](../../v1/REFERENCES.md)를 함께 본다.
+
+## V1-26 청킹 비교 레퍼런스 (2026-10-03 확인)
+
+| 자료 | 확인한 사실 | FinSight에서의 활용 |
+|---|---|---|
+| [LlamaIndex Node Parser Usage Pattern](https://developers.llamaindex.ai/python/framework/module_guides/loading/node_parsers/) | `SentenceSplitter`는 `Document`를 Node 청크로 나누며 `chunk_size`와 `chunk_overlap`을 지정할 수 있다. | 같은 크기·겹침 설정에서 제목 경계 선분할 여부만 비교한다. |
+| [LlamaIndex Retrieval Evaluation](https://developers.llamaindex.ai/python/framework/understanding/evaluating/evaluating/) | 검색 평가에는 질문과 정답 Node ID가 필요하며, MRR·hit rate 등의 평가 예제를 제공한다. | V1-26은 청킹마다 Node ID가 달라지므로 원문에서 확인한 인용문을 공통 정답으로 두고 Hit@K·MRR@K를 직접 계산한다. |
+| [scikit-learn HashingVectorizer](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.HashingVectorizer.html) | 이 변환기는 학습이 필요 없는(stateless) 문자 n-gram 벡터와 L2 정규화를 제공한다. | V1-26에서 청킹 외 검색 조건을 고정할 어휘 검색 기준선으로 사용한다. 의미 기반 임베딩 검색 성능을 대신하지 않는다. |
+
+V1-26의 정답 인용문은 OpenDART 공시서류원본파일 API로 실제 두 사업보고서 XML에서 확인했다. 문장별 고유성은 같은 B 추출 텍스트에서 각각 1회 출현하는지 점검한다. 이는 작은 개발셋의 근거이며 독립 holdout은 아니다.
