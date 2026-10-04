@@ -45,3 +45,12 @@ V1-26의 정답 인용문은 OpenDART 공시서류원본파일 API로 실제 두
 | [scikit-learn HashingVectorizer](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.HashingVectorizer.html) | 문자 n-gram을 상태 없는 희소 벡터로 변환할 수 있다. BM25나 학습된 의미 임베딩은 아니다. | 26번의 어휘 검색기를 그대로 유지해 벡터·하이브리드와 비교한다. |
 
 V1-27의 실제형 질문 6개는 26번에서 확인한 같은 근거 6개를 다른 사용자 표현으로 재질문한 것이다. 평가에 도움은 되지만 새로운 문서·독립 근거가 추가된 holdout으로 간주하지 않는다.
+
+### V1-27 후속 어휘 검색 비교 레퍼런스 (2026-10-05 확인)
+
+| 자료 | 확인한 사실 | FinSight에서의 활용 |
+|---|---|---|
+| [SQLite FTS5 공식 문서](https://www.sqlite.org/fts5.html#the_bm25_function) | FTS5는 내장 `bm25()` 순위 함수를 제공한다. 반환 점수는 낮을수록 관련성이 높고, `rank`로 정렬할 수 있다. | 새 패키지 없이 같은 사업보고서 청크에서 한국어 BM25 어휘 검색 기준선을 만든다. |
+| [Kiwi 형태소 분석 API](https://bab2min.github.io/kiwipiepy/) | `Kiwi.tokenize()`가 한국어를 형태소와 품사로 나눈다. | 조사·어미를 제외한 핵심 형태소를 FTS5 입력 토큰으로 사용한다. 선택한 품사 집합 자체도 검색 품질에 영향을 줄 수 있으므로 현재 비교의 조건으로 기록한다. |
+
+문자 n-gram과 형태소 BM25는 토큰 단위와 점수식이 함께 다르다. 후속 비교는 두 **어휘 검색 구성 전체**의 우열만 해석하며 BM25 점수식의 독립 효과로 해석하지 않는다. FTS5 실험용 테이블은 XML의 재무·사업 필드를 구조화한 DB가 아니다.
