@@ -69,6 +69,28 @@
   </table>
   <p>다음 비교에서는 잘리는 청크를 먼저 처리하고, 같은 질문셋에서 BM25를 어휘 후보로 추가할 필요가 있는지 검토할 수 있다. BM25가 더 좋을 것이라고 미리 단정하지 않는다. parent–child 청킹 비교와 최종 답변 평가는 이 보고서의 범위 밖이다.</p>
 
-  <p class="foot">근거: <a href="../../../notebooks/v1/27_business_report_retrieval_comparison.ipynb">27번 노트북의 저장된 출력</a>, <a href="https://huggingface.co/intfloat/multilingual-e5-small">multilingual-E5-small 모델 카드</a>.</p>
+  <h2>6. 후속 실험 — 문자 n-gram과 형태소 BM25</h2>
+  <div class="card">
+    <strong>목적·변수:</strong> 앞 절과 같은 B 청크·질문·정답 인용문에서 어휘 검색 구성을 바꿔 본다. 기존 문자 2~4-gram 벡터 유사도와 Kiwi 형태소 + SQLite FTS5 기본 BM25를 비교했다. 토큰화 방식과 점수식이 함께 바뀌었으므로 BM25 점수식만의 효과는 분리되지 않는다. 이번 실행에는 E5·하이브리드가 관여하지 않는다.
+  </div>
+  <table>
+    <tr><th>질문 그룹</th><th>검색 방식</th><th>Hit@3</th><th>Hit@5</th><th>MRR@5</th><th>중앙값 질의 시간</th></tr>
+    <tr><td rowspan="2">기본 10개</td><td>문자 n-gram</td><td>7/10</td><td>9/10</td><td>0.745</td><td>1.525 ms</td></tr>
+    <tr><td>형태소 BM25</td><td>8/10</td><td>9/10</td><td>0.770</td><td>0.855 ms</td></tr>
+    <tr><td rowspan="2">실제형 재표현 6개</td><td>문자 n-gram</td><td>3/6</td><td>3/6</td><td>0.417</td><td>1.200 ms</td></tr>
+    <tr><td>형태소 BM25</td><td>3/6</td><td>3/6</td><td>0.417</td><td>0.785 ms</td></tr>
+  </table>
+  <p>BM25는 기본 질문의 시설투자 근거(S01)를 23위에서 1위, 리노공업 시장위험(R03)을 4위에서 1위로 올렸다. 그러나 삼성전자 종속기업(S03)은 5위에서 6위로 밀려 Hit@5에서 빠졌고, 리노공업 연구개발(R04)은 1위에서 5위로 내려갔다. 실제형에서는 설비투자(P01)가 41위에서 11위로 개선됐지만 여전히 상위 5개 밖이다. 삼성전자 연결대상 자회사(P03)는 BM25가 검색한 23개 후보에 정답 청크가 없었고, 리노공업 외부 시장위험(P05)은 6위에서 32위로 악화했다. 이들은 원문 근거 부재가 아니라 검색 후보·순위의 실패다.</p>
+  <table>
+    <tr><th>후보</th><th>이번 결정</th><th>이유</th></tr>
+    <tr><td>문자 n-gram</td><td>최종 채택 보류·비교 후보 유지</td><td>기본 질문에서 BM25보다 Hit@3·MRR@5가 조금 낮지만, S03과 실제형 P03·P05에서는 BM25보다 높은 순위다.</td></tr>
+    <tr><td>Kiwi + SQLite BM25</td><td>최종 채택 보류·비교 후보 유지</td><td>기본 질문 Hit@3·MRR@5와 S01이 개선됐지만, 실제형 집계에서는 동률이며 일부 질문이 크게 악화됐다.</td></tr>
+  </table>
+  <p>형태소 분석·FTS 인덱스 준비 시간은 삼성전자 0.41초, 리노공업 1.61초였다. 질의 지연시간은 단일 로컬 실행의 warm 값이라 선택 기준으로 삼지 않았다. 저장된 0.02 MB 인덱스 값은 SQLite 쓰기 확정 전에 측정되어 과소 표시 가능성이 확인됐다. 노트북의 측정 셀을 수정했으나 재실행 전이므로 이 값을 저장 용량 판단에 사용하지 않는다. 원본 ZIP 보관 정책도 변경하지 않는다.</p>
+  <div class="card caution">
+    <strong>결론 한계:</strong> 같은 두 문서에서 만든 개발 질문 10개와 같은 근거의 재표현 6개뿐이다. BM25 후보는 기본 FTS5 설정과 한 가지 Kiwi 품사 선택만 시험했다. 지표가 엇갈리므로 이 결과만으로 다음 하이브리드의 어휘 검색기를 하나로 고정하지 않는다.
+  </div>
+
+  <p class="foot">근거: <a href="../../../notebooks/v1/27_business_report_retrieval_comparison.ipynb">27번 노트북의 저장된 출력</a>, <a href="https://huggingface.co/intfloat/multilingual-e5-small">multilingual-E5-small 모델 카드</a>, <a href="https://www.sqlite.org/fts5.html#the_bm25_function">SQLite FTS5 BM25</a>, <a href="https://bab2min.github.io/kiwipiepy/">Kiwi</a>.</p>
 </body>
 </html>
