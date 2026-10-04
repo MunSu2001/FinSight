@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-26 사업보고서 청킹 A/B와 근거 검색 비교</title>
+  <style>
+    :root { --ink: #18212f; --muted: #586577; --line: #dce3ec; --bg: #f6f8fb; --blue: #155eef; --green: #067647; --amber: #b54708; }
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: var(--ink); }
+    h1 { font-size: 2rem; margin: 0 0 8px; } h2 { margin-top: 38px; font-size: 1.3rem; }
+    .sub, .foot { color: var(--muted); } .card { background: var(--bg); border-left: 4px solid var(--blue); padding: 15px 19px; margin: 22px 0; border-radius: 4px; }
+    .decision { border-left-color: var(--green); } .caution { border-left-color: var(--amber); }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: .94rem; }
+    th, td { border: 1px solid var(--line); padding: 9px; text-align: left; vertical-align: top; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; } ul { padding-left: 22px; }
+  </style>
+</head>
+<body>
+  <h1>26. 사업보고서 청킹 A/B와 근거 검색 비교</h1>
+  <p class="sub">저장된 노트북 출력 확인: 2026-10-05 · 삼성전자·리노공업의 2024 사업연도 사업보고서 각 1건 · 개발 질문 10개</p>
+
+  <div class="card">
+    <strong>목적:</strong> 25번에서 선택한 B 추출 텍스트를 같은 검색기로 찾을 때, 제목 경계를 먼저 분리하는 것이 근거 청크의 검색 순위에 영향을 주는지 확인한다. 청킹 외 조건은 고정하며, 검색기 자체의 우열이나 최종 답변 품질은 평가하지 않는다.
+  </div>
+  <div class="card decision">
+    <strong>간단한 결과·결정:</strong> 두 후보 모두 정답 인용문 10/10개가 청크에 남았다. 제목 경계 우선 B는 A보다 Hit@5가 9/10 대 8/10, MRR@5가 0.745 대 0.483으로 높았다. <strong>B를 다음 검색 비교의 조건부 청킹 기준선</strong>으로 사용한다. A는 현재 기준선으로 미채택하되, 다른 검색기·문서·질문에서도 B가 우세하다는 최종 결론은 보류한다.
+  </div>
+
+  <h2>1. 비교 조건과 정답</h2>
+  <table>
+    <tr><th>항목</th><th>고정 또는 후보</th></tr>
+    <tr><td>원문</td><td>OpenDART 원문 ZIP에서 접수번호 <code>20250311001085</code>(삼성전자), <code>20250318000229</code>(리노공업)의 지정 XML을 읽음. 두 문서 모두 2024 사업연도 사업보고서.</td></tr>
+    <tr><td>텍스트</td><td>동일 XML을 <code>BeautifulSoup(..., 'lxml-xml')</code>로 파싱하고 25번 B 규칙으로 제목·표 경계를 표시.</td></tr>
+    <tr><td>A: 전체 청킹</td><td>B 텍스트 전체에 <code>SentenceSplitter(chunk_size=512, chunk_overlap=64)</code> 적용.</td></tr>
+    <tr><td>B: 제목 경계 우선</td><td><code>##</code> 제목에서 먼저 구간을 나눈 후 각 구간에 동일한 SentenceSplitter 적용. 부모–자식 관계를 저장하는 계층형 청킹은 아님.</td></tr>
+    <tr><td>검색</td><td>회사별 문자 2~4-gram <code>HashingVectorizer</code>와 L2 정규화 점수. 임베딩·BM25·reranker·LLM 답변은 사용하지 않음.</td></tr>
+    <tr><td>정답</td><td>보고서 원문에서 확인한 인용문 10개. 각각 XML 파싱 텍스트와 B 추출 텍스트에서 1회 존재하는지 확인. 정답 청크는 공백을 제거한 인용문 전체를 포함해야 함.</td></tr>
+  </table>
+  <p>정답 사례는 삼성전자 5개, 리노공업 5개다. 같은 문서·접수번호에 속한 개발 질문이므로 독립 holdout이나 실제 사용자 질문 분포가 아니다. 검색은 기업이 이미 식별됐다는 조건에서 해당 기업 문서 안에서만 수행한다.</p>
+
+  <h2>2. 저장된 결과</h2>
+  <table>
+    <tr><th>지표</th><th>A. 전체 청킹</th><th>B. 제목 경계 우선</th><th>의미</th></tr>
+    <tr><td>문서별 청크 수</td><td>삼성전자 86 / 리노공업 344</td><td>삼성전자 96 / 리노공업 384</td><td>B는 제목 경계에서 추가 분할돼 총 50개 청크가 많음.</td></tr>
+    <tr><td>Evidence Coverage</td><td>10/10</td><td>10/10</td><td>10개 정답 문구가 각각 적어도 하나의 청크에 포함됨.</td></tr>
+    <tr><td>Hit@3</td><td>6/10</td><td>7/10</td><td>상위 3개에서 정답 청크를 발견한 질문 비율.</td></tr>
+    <tr><td>Hit@5</td><td>8/10</td><td>9/10</td><td>상위 5개에서 정답 청크를 발견한 질문 비율.</td></tr>
+    <tr><td>MRR@5</td><td>0.483</td><td>0.745</td><td>5위 안에서 첫 정답 청크가 앞에 올수록 높은 평균 역순위.</td></tr>
+    <tr><td>중앙값 질의 시간</td><td>1.835 ms</td><td>1.270 ms</td><td>저장된 단일 실행의 로컬 검색 시간. 일반적인 속도 우위 판정은 하지 않음.</td></tr>
+  </table>
+  <p>청크와 검색 행렬 생성 시간은 삼성전자 A/B 0.23/0.08초, 리노공업 A/B 0.34/0.31초였다. 희소 행렬의 저장 크기는 회사별로 양 후보가 각각 약 0.69/2.36 MB였다. 모델 로드·LLM 호출·API 토큰 비용은 없다. XML 다운로드와 추출을 포함한 전체 운영 비용이나 반복 실행 분산은 측정하지 않았다.</p>
+
+  <h2>3. 질문별로 보면 무엇이 달라졌나</h2>
+  <table>
+    <tr><th>사례</th><th>정답 청크 순위 A → B</th><th>해석</th></tr>
+    <tr><td>삼성전자 TV 사업 판매 1위 지속 기간</td><td>6위 → 1위</td><td>제목 경계 우선 B에서 상위 결과로 올라온 대표 개선 사례.</td></tr>
+    <tr><td>리노공업 연구개발 기본 개념</td><td>4위 → 1위</td><td>Hit@3의 개선에 기여.</td></tr>
+    <tr><td>삼성전자 종속기업 규모</td><td>2위 → 5위</td><td>B에서도 Hit@5 안에는 있으나 순위는 악화. B가 모든 질문에서 우세하지 않음.</td></tr>
+    <tr><td>삼성전자 2024년 시설투자 규모</td><td>22위 → 23위</td><td>두 방식 모두 상위 5개에서 실패. 근거 자체는 청크에 있으므로 텍스트 보존 문제가 아니라 검색 순위 문제.</td></tr>
+    <tr><td>리노공업 시장위험 요인</td><td>4위 → 4위</td><td>제목 경계를 추가해도 상위 3개로 들어오지 않음.</td></tr>
+  </table>
+  <p>시설투자 질문에서 출력된 첫 검색 결과는 양 후보 모두 정답 근거가 아니었다. 현재 출력만으로 그 실패를 청킹·문자 n-gram 검색·질문 표현 중 한 요소의 단독 원인으로 확정할 수 없다. 26번의 점수 동점 수는 상위 5개와 5·6위 경계에서 모두 0으로 저장됐다. 동점 발생 시 구현은 원문 청크 순서로 처리한다.</p>
+
+  <h2>4. 채택·미채택과 한계</h2>
+  <table>
+    <tr><th>후보</th><th>현재 결정</th><th>이유와 남은 조건</th></tr>
+    <tr><td>A. 전체 청킹</td><td>다음 비교의 기본값으로 미채택</td><td>이번 어휘 검색 기준선에서 B보다 낮은 Hit@3/5·MRR@5. 다만 단순 구조의 비교 기준선으로 보존한다.</td></tr>
+    <tr><td>B. 제목 경계 우선</td><td>조건부 기준선</td><td>이번 10개 개발 질문에서 평균 검색 순위가 좋고 정답 문구 보존도 동일했다. 시설투자 실패와 종속기업 순위 악화는 해결하지 못했다.</td></tr>
+  </table>
+  <div class="card caution">
+    <strong>최종 확정 보류:</strong> 2개 기업의 사업보고서 2건·10개 개발 질문만 평가했고, 정답은 원문 인용문 하나씩으로 정의했다. 파라프레이즈 근거, 여러 청크를 합쳐야 하는 질문, 다년도·다기업 문서 검색, 최종 답변 정확도는 포함하지 않았다. 이 결과를 임베딩·하이브리드 검색이나 실제 운영 사용자 질문으로 일반화하지 않는다.
+  </div>
+  <p>다음 실험은 B를 고정하고 어휘·dense vector·hybrid retrieval을 같은 근거 질문과 사용자형 재표현 질문에서 비교한다. 이후 검색 방식을 고정하고 B와 parent–child 청킹을 비교한다. 사용자형 재표현이 기존 인용문을 재사용한다면 독립 정답으로 합산하지 않고 따로 보고해야 한다.</p>
+
+  <p class="foot">근거: <a href="../../../notebooks/v1/26_business_report_chunking_retrieval_comparison.ipynb">26번 노트북의 저장된 출력</a>, <a href="https://developers.llamaindex.ai/python/framework/understanding/evaluating/evaluating/">LlamaIndex Retrieval Evaluation</a>, <a href="https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.HashingVectorizer.html">scikit-learn HashingVectorizer</a>.</p>
+</body>
+</html>

@@ -35,3 +35,13 @@ V1에서 이미 사용한 상세 API 제한과 결정은 [V1 REFERENCES](../../v
 | [scikit-learn HashingVectorizer](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.HashingVectorizer.html) | 이 변환기는 학습이 필요 없는(stateless) 문자 n-gram 벡터와 L2 정규화를 제공한다. | V1-26에서 청킹 외 검색 조건을 고정할 어휘 검색 기준선으로 사용한다. 의미 기반 임베딩 검색 성능을 대신하지 않는다. |
 
 V1-26의 정답 인용문은 OpenDART 공시서류원본파일 API로 실제 두 사업보고서 XML에서 확인했다. 문장별 고유성은 같은 B 추출 텍스트에서 각각 1회 출현하는지 점검한다. 이는 작은 개발셋의 근거이며 독립 holdout은 아니다.
+
+## V1-27 사업보고서 검색 비교 레퍼런스 (2026-10-05 확인)
+
+| 자료 | 확인한 사실 | FinSight에서의 활용 |
+|---|---|---|
+| [multilingual-E5-small 모델 카드](https://huggingface.co/intfloat/multilingual-e5-small) | 다국어 임베딩 모델이며 검색에는 질문에 `query: `, 문서에 `passage: ` 접두어를 붙인다. 입력은 최대 512 token까지 처리한다. 모델 라이선스는 MIT이고 safetensors 가중치는 약 471 MB다. | 26번과 동일한 B 청크에서 의미 기반 dense 검색 기준선을 만든다. CPU에서 사용하고 잘린 청크 수를 기록한다. 이 모델의 성능이 모든 임베딩 모델을 대표하지는 않는다. |
+| [LlamaIndex 순위 결합 예제](https://developers.llamaindex.ai/python/examples/low_level/fusion_retriever/) | 벡터 검색과 어휘 검색 결과를 Reciprocal Rank Fusion(RRF)으로 결합할 수 있다. | 점수 척도가 다른 어휘·dense 검색의 상위 순위를 결합하는 첫 하이브리드 기준선으로 사용한다. |
+| [scikit-learn HashingVectorizer](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.HashingVectorizer.html) | 문자 n-gram을 상태 없는 희소 벡터로 변환할 수 있다. BM25나 학습된 의미 임베딩은 아니다. | 26번의 어휘 검색기를 그대로 유지해 벡터·하이브리드와 비교한다. |
+
+V1-27의 실제형 질문 6개는 26번에서 확인한 같은 근거 6개를 다른 사용자 표현으로 재질문한 것이다. 평가에 도움은 되지만 새로운 문서·독립 근거가 추가된 holdout으로 간주하지 않는다.
