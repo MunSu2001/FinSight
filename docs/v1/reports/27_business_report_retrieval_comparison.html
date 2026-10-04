@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-27 사업보고서 검색 방식 비교</title>
+  <style>
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: #18212f; }
+    h1 { margin-bottom: 8px; } h2 { margin-top: 36px; } .sub, .foot { color: #586577; }
+    .card { background: #f6f8fb; border-left: 4px solid #155eef; padding: 15px 19px; margin: 22px 0; }
+    .caution { border-left-color: #b54708; } table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+    th, td { border: 1px solid #dce3ec; padding: 9px; text-align: left; vertical-align: top; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; }
+  </style>
+</head>
+<body>
+  <h1>27. 사업보고서 검색 방식 비교</h1>
+  <p class="sub">저장된 노트북 출력 확인: 2026-10-05 · 삼성전자·리노공업 2024 사업보고서 각 1건 · 기본 질문 10개 + 같은 근거의 실제형 재표현 6개</p>
+
+  <div class="card">
+    <strong>목적:</strong> 26번에서 조건부 기준선으로 선택한 제목 경계 우선 청킹(B)을 고정하고, 사업보고서의 정답 근거가 검색 상위에 나타나는지를 어휘·의미 벡터·하이브리드 방식으로 비교한다. LLM 답변 생성 품질은 평가하지 않는다.
+  </div>
+  <div class="card caution">
+    <strong>간단한 결과·결정:</strong> 기본 질문에서는 문자 기반 어휘 검색이 Hit@5 9/10으로 가장 높았다. 실제형 재표현에서는 하이브리드가 4/6으로 가장 높지만, 평균 역순위(MRR@5)는 어휘 검색이 약간 높았다. 의미 임베딩 입력에서 480개 청크 중 2개가 잘렸고 표본도 작으므로 <strong>최종 검색기 채택은 보류</strong>한다. 다음 비교의 재현 가능한 어휘 기준선으로 현재 문자 검색을 유지한다.
+  </div>
+
+  <h2>1. 비교 조건</h2>
+  <table>
+    <tr><th>항목</th><th>조건</th></tr>
+    <tr><td>원문·청킹</td><td>26번과 같은 접수번호의 삼성전자 96개, 리노공업 384개 B 청크. 16개 질문의 정답 인용문이 해당 회사 청크에 적어도 한 번 포함되는 것을 확인했다.</td></tr>
+    <tr><td>어휘</td><td>문자 2~4-gram <code>HashingVectorizer</code>의 L2 정규화 벡터 유사도. BM25가 아니다.</td></tr>
+    <tr><td>벡터</td><td>CPU의 <code>intfloat/multilingual-e5-small</code> 임베딩. 질문 <code>query:</code>, 청크 <code>passage:</code> 접두어 사용.</td></tr>
+    <tr><td>하이브리드</td><td>두 검색기의 상위 20개씩을 RRF(<code>k=60</code>)로 결합. 따라서 양쪽 모두 20위 밖인 근거는 후보에 들어가지 않는다.</td></tr>
+    <tr><td>정답·지표</td><td>원문 인용문 전체를 공백 제외하고 포함하는 청크의 첫 순위. Hit@3/5와 MRR@5, 질문별 실패 및 질의 시간을 확인한다.</td></tr>
+  </table>
+
+  <h2>2. 저장된 평가 결과</h2>
+  <table>
+    <tr><th>질문 그룹</th><th>검색 방식</th><th>Hit@3</th><th>Hit@5</th><th>MRR@5</th><th>중앙값 질의 시간</th></tr>
+    <tr><td rowspan="3">기본 10개</td><td>문자 기반 어휘</td><td>7/10</td><td>9/10</td><td>0.745</td><td>2.300 ms</td></tr>
+    <tr><td>의미 벡터</td><td>5/10</td><td>7/10</td><td>0.495</td><td>15.940 ms</td></tr>
+    <tr><td>하이브리드</td><td>5/10</td><td>7/10</td><td>0.550</td><td>18.255 ms</td></tr>
+    <tr><td rowspan="3">실제형 재표현 6개</td><td>문자 기반 어휘</td><td>3/6</td><td>3/6</td><td>0.417</td><td>1.900 ms</td></tr>
+    <tr><td>의미 벡터</td><td>3/6</td><td>3/6</td><td>0.250</td><td>17.875 ms</td></tr>
+    <tr><td>하이브리드</td><td>2/6</td><td>4/6</td><td>0.408</td><td>19.720 ms</td></tr>
+  </table>
+  <p>실제형 6개는 기본 질문의 기존 정답 인용문을 다시 묻는다. 독립 holdout 6개가 추가된 것으로 합산해 해석하지 않는다. 시간은 CPU의 단일 실행에서 준비가 끝난 뒤 측정한 값이므로 운영 지연시간이나 모델 간 일반적인 속도 차이를 뜻하지 않는다.</p>
+
+  <h2>3. 질문별로 무엇이 달라졌나</h2>
+  <table>
+    <tr><th>사례</th><th>어휘 → 벡터 → 하이브리드 순위</th><th>해석</th></tr>
+    <tr><td>S01 삼성전자 시설투자 / P01 설비투자</td><td>23 → 21 → 후보 밖 / 41 → 14 → 24</td><td>근거는 청크에 있지만 세 방식 모두 상위 5개에서 실패했다. 하이브리드가 반드시 구제하지 않는다.</td></tr>
+    <tr><td>R02 리노공업 공급가격 결정 / R04 연구개발 개념</td><td>1 → 29 → 7 / 1 → 53 → 15</td><td>벡터 결과가 낮아, 어휘 검색 단독으로는 1위였던 근거가 결합 후 상위 5개 밖으로 밀렸다.</td></tr>
+    <tr><td>P03 삼성전자 연결대상 자회사</td><td>38 → 8 → 13</td><td>벡터가 어휘보다 개선했지만, 어느 방식도 상위 5개에는 들지 못했다.</td></tr>
+    <tr><td>P05 리노공업 외부 시장 위험</td><td>6 → 2 → 4</td><td>어휘 단독의 상위 5개 실패를 벡터와 하이브리드가 보완했다.</td></tr>
+    <tr><td>P04 리노공업 제품별 판매가격</td><td>1 → 29 → 5</td><td>하이브리드는 상위 5개에 남지만, 어휘 단독보다 순위는 낮다.</td></tr>
+  </table>
+
+  <h2>4. 비용·자원과 해석 한계</h2>
+  <p>이 실행에서 모델 로드는 13.6초, 파라미터 크기는 약 449 MiB였다. 480개 청크의 CPU 임베딩 생성은 회사별 4.94초·18.90초였고, 생성된 dense 행렬은 0.14·0.56 MiB였다. 어휘 인덱스 생성은 0.06·0.14초, 희소 행렬은 0.69·2.36 MB였다. 이 수치는 최초 준비 비용과 인덱스의 저장 크기이며, 전체 프로세스 메모리 사용량이나 반복 측정의 분산은 아니다. 외부 LLM API 비용은 없었다.</p>
+  <p>리노공업 청크 2개가 E5의 512-token 입력 한계를 초과해 뒤쪽이 잘렸다. 이 잘림이 개별 실패의 원인인지는 확인되지 않았다. 현재 정답 판정은 인용문 전체가 <em>한 청크</em>에 있어야 한다. 의미상 맞는 다른 문장이나 여러 청크를 함께 읽어야 하는 질문은 정답으로 인정하지 못하므로, 최종 답변 품질과 동일시할 수 없다.</p>
+
+  <h2>5. 채택·미채택</h2>
+  <table>
+    <tr><th>후보</th><th>현재 결정</th><th>근거</th></tr>
+    <tr><td>문자 기반 어휘</td><td>다음 비교의 기준선으로 유지</td><td>기본 질문에서 Hit@5·MRR@5가 가장 높고 재표현에서도 MRR@5가 가장 높다. 다만 시설투자·연결대상 질문은 놓친다.</td></tr>
+    <tr><td>의미 벡터</td><td>단독 최종안 미채택, 결론 보류</td><td>일부 재표현 질문은 개선하지만 기본 질문의 Hit@5가 낮고, 입력 잘림이 남아 있다.</td></tr>
+    <tr><td>하이브리드</td><td>최종안 보류</td><td>재표현 Hit@5는 가장 높지만 기본 질문에서는 어휘 단독보다 낮고, 잘림·상위 20개 후보 제한의 영향을 받을 수 있다.</td></tr>
+  </table>
+  <p>다음 비교에서는 잘리는 청크를 먼저 처리하고, 같은 질문셋에서 BM25를 어휘 후보로 추가할 필요가 있는지 검토할 수 있다. BM25가 더 좋을 것이라고 미리 단정하지 않는다. parent–child 청킹 비교와 최종 답변 평가는 이 보고서의 범위 밖이다.</p>
+
+  <p class="foot">근거: <a href="../../../notebooks/v1/27_business_report_retrieval_comparison.ipynb">27번 노트북의 저장된 출력</a>, <a href="https://huggingface.co/intfloat/multilingual-e5-small">multilingual-E5-small 모델 카드</a>.</p>
+</body>
+</html>
