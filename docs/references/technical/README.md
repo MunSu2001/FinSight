@@ -65,3 +65,12 @@ V1-27의 실제형 질문 6개는 26번에서 확인한 같은 근거 6개를 �
 추가 개발 질문은 [NAVER 공식 IR](https://www.navercorp.com/investment/irReports)의 2024 사업보고서, [LG생활건강 공식 사업보고서](https://www.lghnh.com/ir/business_report.jsp)의 2024 보고서, [HDC 공식 공고](https://www.hdc-holdings.com/ko/ir/disclosure/notice/view?fromNotice=true&inIdx=6)의 2024 보고서를 읽고 검색 실행 전에 작성했다. 공식 IR PDF는 정답 수집 근거이며, 검색 입력은 기존 OpenDART XML로 유지한다. 실제 XML·청크에도 인용문이 존재하는지 실행 시 확인해야 한다.
 
 29번은 5기업·5개 2024 보고서·25개 **개발 질문**이다. 기업별 2개 연도나 독립 holdout을 확보한 것으로 표현하지 않는다. 비율 후보는 E5:BM25 = 10:0 / 7:3 / 5:5 / 3:7 / 0:10이며, 정답은 제한된 인용문 기반이므로 전체 관련 근거에 대한 완전한 relevance 판정이 아니다.
+
+## V1-30 Parent-child 청킹 비교 (2026-10-05 확인)
+
+| 자료 | 확인한 사실 | FinSight에서의 활용 |
+|---|---|---|
+| [LlamaIndex HierarchicalNodeParser 공식 API](https://developers.llamaindex.ai/python/framework-api-reference/node_parsers/hierarchical/) | 계층별 parser로 재귀 분할하며 부모·자식 Node 관계를 만든다. `node_parser_ids`와 `node_parser_map`으로 계층별 SentenceSplitter를 지정할 수 있다. | 설치된 `llama-index-core 0.14.25`의 구현도 확인했다. 모든 계층에 E5 tokenizer를 명시해 부모 1,200·자식 400·overlap 48 후보를 만든다. 큰 부모는 E5에 넣지 않는다. |
+| [LlamaIndex Auto Merging 공식 예제](https://developers.llamaindex.ai/python/framework/integrations/retrievers/auto_merging_retriever/) | leaf Node를 검색 인덱스에 넣고 부모 문맥은 별도로 보존한다. 예제의 AutoMergingRetriever는 검색된 자식 집합을 임계값에 따라 부모로 병합한다. | 작은 자식 검색과 큰 문맥 반환을 구분하는 구조의 근거다. 30번은 해당 임계값 병합 클래스를 사용하지 않고 상위 자식 5개의 부모를 직접 가져와 중복 제거한다. |
+
+사용자가 승인한 E5:BM25 = 5:5를 **후속 비교 기준선**으로 고정한다. 최종 운영 검색기까지 확정했다는 뜻은 아니다. 두 후보 모두 같은 제목 섹션에서 시작하며, 부모→자식 순서의 재분할과 부모 확장을 함께 비교하므로 확장만의 독립 효과라고 표현하지 않는다. 반환 문맥의 크기가 달라 제한 없는 결과와 공통 2,400 E5-token 예산 결과를 나눈다. 정답은 동일 인용문 ID 기준이고, 기존 개발 질문 25개와 기존 근거를 묶은 복합 질문 5개를 분리한다. 해당 크기·예산은 이번 실험 가정이며 공식 문서가 권고한 최적값은 아니다.
