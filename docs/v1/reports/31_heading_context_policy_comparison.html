@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V1-31 제목 계층 문맥 반환 정책·예산 비교</title><style>
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: #18212f; }
+    h1 { margin-bottom: 8px; } h2 { margin-top: 36px; } h3 { margin-top: 24px; }
+    .sub, .foot { color: #586577; } .card { background: #f6f8fb; border-left: 4px solid #155eef; padding: 15px 19px; margin: 22px 0; }
+    .caution { border-left-color: #b54708; } table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+    th, td { border: 1px solid #dce3ec; padding: 9px; text-align: left; vertical-align: top; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; overflow-wrap: anywhere; } .num { white-space: nowrap; text-align: right; }
+  pre {white-space:pre-wrap;overflow-wrap:anywhere;} table {font-size:14px;}</style></head><body>
+<h1>31. 제목 계층 문맥 반환 정책·예산 비교</h1>
+<p class="sub">실행·저장: Codex, conda skn25 · 완료 시각 2026-10-05T17:08:55.478960+00:00 · 5기업·2024 보고서 5개·개발 질문 30개 · GPU 0 FP32</p>
+<div class="card"><strong>테스트 목적:</strong> 30번 C의 예산 후 0점이 실제 검색 실패인지 구분하고, 같은 제목 계층 검색 결과에서 큰 부모 전체 반환과 검색 조각 우선 보존·직접 제목 확장을 비교한다. 예산 확대와 제한 없는 결과를 함께 확인한다. <strong>LLM 답변 정확도 평가나 최종 운영 통합은 아니다.</strong></div>
+<div class="card caution"><strong>간단한 결과:</strong> 무제한 C-full의 근거 Recall은 1.0000, C-seed-first는 0.8500다. 8,000 E5 토큰에서 C-seed-first는 Hit 26/30, Recall 0.8500, 문맥 중앙값 5,173토큰이다. 같은 예산의 C-full Recall은 0.0000다. 구체적 우열과 근거는 아래 표를 사용하며, 제목 계층 자체를 2,400 제한의 0점으로 탈락시키지 않는다.</div>
+
+<h2>1. 비교 조건과 후보</h2>
+<table><tr><th>후보</th><th>반환 정책</th><th>고정·변경 범위</th></tr>
+<tr><td>A</td><td>제목 경계 우선의 작은 검색 청크 자체</td><td>30번 기준선</td></tr>
+<tr><td>B</td><td>1,200토큰 부모·400토큰 자식 중 자식을 검색하고 부모 전체 반환</td><td>30번 토큰 계층 기준선</td></tr>
+<tr><td>C-full</td><td>실제 XML 제목 계층의 원래 부모 전체</td><td>30번 C를 그대로 보존</td></tr>
+<tr><td>C-seed-first</td><td>같은 C의 상위 5개 작은 검색 조각을 먼저 담고, 예산 안에서 그 조각의 직접 제목 문맥으로 확장. 같은 제목은 병합하며 다른 제목의 같은 문자열은 구분한다.</td><td>검색 조각·순위는 C-full과 동일. 반환 구성 전체를 변경하며 제목 계층이나 임베딩을 새로 만들지 않는다.</td></tr></table>
+<p>모든 후보의 초기 문맥 선택은 초과 시 중단하고 뒤의 작은 단위로 건너뛰어 보충하지 않는다. 다만 C-full은 부모 전체, C-seed-first는 작은 조각부터 선택하므로 “직접 제목 확장만”의 독립 효과가 아니다. seed-first 확장은 이미 선택한 조각을 잃지 않는 경우에만 허용한다. 제목 소유 관계가 유일하지 않으면 임의 제목을 선택하지 않고 작은 조각을 유지한다.</p>
+<p>E5 + Kiwi SQLite FTS5 BM25, 가중치 5:5, 후보 각 20개, RRF 상수 60, 상위 검색 seed 5개를 고정했다. 기업·보고서는 질문마다 지정하며 기업·기간 Router는 평가하지 않는다. A/B/C-full의 검색은 각각 한 번, C-full/C-seed-first의 동일 순위는 다섯 예산에 재사용했다. 새 후보·기존 기준선 모두 GPU 0 FP32로 실행했다.</p>
+<p>예산 없음 / 2,400 / 8,000 / 16,000 / 32,000은 <strong>E5 토크나이저로 센 비교 조건</strong>이다. 실제 운영 LLM의 최대 입력·권장 입력량·청구 토큰이 아니다. 2,400을 합격선으로 쓰지 않는다. 근거 인용문·정답 ID는 scoring에만 사용하고 반환 정책에는 전달하지 않는다.</p>
+
+<h2>2. 작은 검색 단위의 결과</h2>
+<table border="1" class="dataframe" id="search-quality">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>questions</th>
+      <th>hits</th>
+      <th>mrr</th>
+      <th>recall</th>
+      <th>median_search_ms</th>
+    </tr>
+    <tr>
+      <th>method</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>heading_parent_child</th>
+      <td>30</td>
+      <td>26</td>
+      <td>0.564444</td>
+      <td>0.833333</td>
+      <td>9.522164</td>
+    </tr>
+    <tr>
+      <th>parent_child</th>
+      <td>30</td>
+      <td>24</td>
+      <td>0.574444</td>
+      <td>0.766667</td>
+      <td>9.158617</td>
+    </tr>
+    <tr>
+      <th>title_boundary</th>
+      <td>30</td>
+      <td>26</td>
+      <td>0.547778</td>
+      <td>0.833333</td>
+      <td>9.417765</td>
+    </tr>
+  </tbody>
+</table>
+<p>Hit은 상위 5개에 정답 근거가 하나 이상 있는 질문 수, MRR은 상위 5개 첫 근거 역순위 평균이다. C의 두 반환 정책은 이 검색 결과를 공유한다. GPU와 CPU의 수치 연산·순위 차이가 있을 수 있으므로 30번 저장 숫자와의 완전 일치를 강제하지 않는다.</p>
+
+<h2>3. 무제한 결과와 예산별 근거 회수·문맥 크기</h2>
+<table border="1" class="dataframe" id="context-quality">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th></th>
+      <th>근거 Hit 질문 수 / 30</th>
+      <th>고정 근거 Recall</th>
+      <th>모든 근거를 담은 질문 수 / 30</th>
+      <th>문맥 토큰 중앙값</th>
+      <th>최대 문맥 토큰</th>
+      <th>문맥 조립 중앙값 ms</th>
+    </tr>
+    <tr>
+      <th>policy</th>
+      <th>budget</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th rowspan="5" valign="top">A</th>
+      <th>unlimited</th>
+      <td>26</td>
+      <td>0.833333</td>
+      <td>24</td>
+      <td>1691.000000</td>
+      <td>1886</td>
+      <td>3.863494</td>
+    </tr>
+    <tr>
+      <th>2400</th>
+      <td>26</td>
+      <td>0.833333</td>
+      <td>24</td>
+      <td>1691.000000</td>
+      <td>1886</td>
+      <td>5.607742</td>
+    </tr>
+    <tr>
+      <th>8000</th>
+      <td>26</td>
+      <td>0.833333</td>
+      <td>24</td>
+      <td>1691.000000</td>
+      <td>1886</td>
+      <td>1.189034</td>
+    </tr>
+    <tr>
+      <th>16000</th>
+      <td>26</td>
+      <td>0.833333</td>
+      <td>24</td>
+      <td>1691.000000</td>
+      <td>1886</td>
+      <td>1.157432</td>
+    </tr>
+    <tr>
+      <th>32000</th>
+      <td>26</td>
+      <td>0.833333</td>
+      <td>24</td>
+      <td>1691.000000</td>
+      <td>1886</td>
+      <td>1.128393</td>
+    </tr>
+    <tr>
+      <th rowspan="5" valign="top">B</th>
+      <th>unlimited</th>
+      <td>25</td>
+      <td>0.816667</td>
+      <td>24</td>
+      <td>4276.000000</td>
+      <td>5724</td>
+      <td>6.622913</td>
+    </tr>
+    <tr>
+      <th>2400</th>
+      <td>23</td>
+      <td>0.750000</td>
+      <td>22</td>
+      <td>2052.000000</td>
+      <td>2357</td>
+      <td>7.406849</td>
+    </tr>
+    <tr>
+      <th>8000</th>
+      <td>25</td>
+      <td>0.816667</td>
+      <td>24</td>
+      <td>4276.000000</td>
+      <td>5724</td>
+      <td>2.356151</td>
+    </tr>
+    <tr>
+      <th>16000</th>
+      <td>25</td>
+      <td>0.816667</td>
+      <td>24</td>
+      <td>4276.000000</td>
+      <td>5724</td>
+      <td>1.703211</td>
+    </tr>
+    <tr>
+      <th>32000</th>
+      <td>25</td>
+      <td>0.816667</td>
+      <td>24</td>
+      <td>4276.000000</td>
+      <td>5724</td>
+      <td>1.687830</td>
+    </tr>
+    <tr>
+      <th rowspan="5" valign="top">C-full</th>
+      <th>unlimited</th>
+      <td>30</td>
+      <td>1.000000</td>
+      <td>30</td>
+      <td>36889.000000</td>
+      <td>908791</td>
+      <td>55.301139</td>
+    </tr>
+    <tr>
+      <th>2400</th>
+      <td>0</td>
+      <td>0.000000</td>
+      <td>0</td>
+      <td>0.000000</td>
+      <td>0</td>
+      <td>0.039928</td>
+    </tr>
+    <tr>
+      <th>8000</th>
+      <td>0</td>
+      <td>0.000000</td>
+      <td>0</td>
+      <td>0.000000</td>
+      <td>7234</td>
+      <td>0.006711</td>
+    </tr>
+    <tr>
+      <th>16000</th>
+      <td>10</td>
+      <td>0.333333</td>
+      <td>10</td>
+      <td>3617.000000</td>
+      <td>15429</td>
+      <td>1.837107</td>
+    </tr>
+    <tr>
+      <th>32000</th>
+      <td>19</td>
+      <td>0.633333</td>
+      <td>19</td>
+      <td>19544.500000</td>
+      <td>30378</td>
+      <td>7.297104</td>
+    </tr>
+    <tr>
+      <th rowspan="5" valign="top">C-seed-first</th>
+      <th>unlimited</th>
+      <td>26</td>
+      <td>0.850000</td>
+      <td>25</td>
+      <td>13257.000000</td>
+      <td>379148</td>
+      <td>24.478041</td>
+    </tr>
+    <tr>
+      <th>2400</th>
+      <td>26</td>
+      <td>0.850000</td>
+      <td>25</td>
+      <td>1941.000000</td>
+      <td>2397</td>
+      <td>22.185926</td>
+    </tr>
+    <tr>
+      <th>8000</th>
+      <td>26</td>
+      <td>0.850000</td>
+      <td>25</td>
+      <td>5173.500000</td>
+      <td>7772</td>
+      <td>11.693674</td>
+    </tr>
+    <tr>
+      <th>16000</th>
+      <td>26</td>
+      <td>0.850000</td>
+      <td>25</td>
+      <td>11242.000000</td>
+      <td>15762</td>
+      <td>9.622089</td>
+    </tr>
+    <tr>
+      <th>32000</th>
+      <td>26</td>
+      <td>0.850000</td>
+      <td>25</td>
+      <td>13257.000000</td>
+      <td>23098</td>
+      <td>9.530266</td>
+    </tr>
+  </tbody>
+</table>
+<p>근거 Recall은 질문별 “온전히 포함된 고정 인용문 ID 수 / 필요한 ID 수”의 평균이다. 단일 질문 25개는 각 1개, 복합 질문 5개는 각 2개다. 모든 근거 질문 수는 Recall=1인 질문 수다. 겹치는 청크에 같은 인용문이 있어도 정답 ID는 중복 집계하지 않는다.</p>
+<p>무제한은 작은 검색 상위 5개에서 반환하는 문맥의 예산을 없앤 것이지 검색 후보를 전 문서로 늘린 것이 아니다. 큰 부모는 질문과 관계없는 본문·다른 부모와 겹치는 내용도 포함할 수 있으므로 높은 Recall만으로 더 정밀한 검색 또는 더 좋은 답변이라고 단정하지 않는다. 제한된 인용문 정답이므로 전체 의미 관련성 Precision·nDCG·완전한 본문 Recall은 평가하지 않았다.</p>
+
+<h3>이 결과를 쉽게 읽는 방법</h3>
+<p><strong>토큰 제한을 높이면 C-full이 회복되는가?</strong> 그렇다. 2,400·8,000에서는 근거 Hit가 0/30이지만, 16,000에서는 10/30, 32,000에서는 19/30, 제한 없음에서는 30/30이다. 따라서 30번의 C 0점은 제목 검색 전체를 탈락시킬 근거가 아니다. 8,000에서 일부 문맥은 반환됐어도 알려진 정답 근거가 없어 Hit가 0이었다. “반환 문맥이 모두 비었다”와 구분한다.</p>
+<p><strong>문맥을 무조건 많이 넣으면 더 좋은가?</strong> 이번 실험으로 최종 답변의 우열은 알 수 없다. C-full은 무제한에서 모든 근거를 포함하지만 문맥 중앙값 36,889토큰·최대 908,791토큰이다. 큰 부모의 겹치는 내용도 포함한 수치라 고유 문서 길이가 아니다. 실제 모델이 긴 문맥을 읽고 정확하게 답하는지, 운영 모델 입력 한도에 맞는지는 미검증이다.</p>
+<p><strong>새 C-seed-first는 어떤가?</strong> 2,400부터 무제한까지 모든 조건에서 Hit 26/30, Recall 0.85, 모든 근거 회수 25/30으로 동일했다. 예산을 늘리면 문맥량은 늘지만 알려진 정답 근거는 추가되지 않았다. 2,400에서도 LG생활건강 복합 질문 M_L의 두 근거를 모두 담아 A의 Recall 0.5보다 높았다. 전체 A 대비 개선은 이 한 근거에 따른 0.016667 차이로, 광범위한 성능 우위라고 과장하지 않는다.</p>
+<p>C-seed-first는 단일 질문 22/25, 복합 질문 Hit 4/5·Recall 0.70이다. 무제한에서도 R01·L01·H04·M_H는 근거를 못 담고 M_R은 두 근거 중 하나만 담았다. 이들은 작은 검색 조각·직접 제목 문맥의 범위 문제를 포함하며, 토큰 예산만 더 키워서는 회복되지 않았다. C-full의 넓은 부모에는 이 근거들이 포함됐으므로 원문에 정답이 없는 사례는 아니다.</p>
+<p><strong>현재 권장:</strong> C의 제목 계층은 후보로 유지하고 C-seed-first를 A와 함께 실제 답변 평가의 우선 후보로 둔다. C-full은 근거 회수 상한 참고 후보로 남긴다. 제한된 개발셋에서 입력량 대비 근거 회수를 확인한 것이며, 2,400이나 seed-first를 최종 운영값으로 자동 채택하지 않는다. 토큰값을 더 촘촘히 튜닝하는 것보다 실제 답변의 누락·근거 지원을 확인하는 것이 다음 판단에 더 직접적이다.</p>
+
+<h2>4. 단일·복합 질문 분리</h2>
+<table border="1" class="dataframe" id="question-groups">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th></th>
+      <th></th>
+      <th>questions</th>
+      <th>hits</th>
+      <th>recall</th>
+      <th>complete</th>
+    </tr>
+    <tr>
+      <th>dataset_group</th>
+      <th>policy</th>
+      <th>budget</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th rowspan="8" valign="top">multi_5</th>
+      <th rowspan="2" valign="top">A</th>
+      <th>8000</th>
+      <td>5</td>
+      <td>4</td>
+      <td>0.600000</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>5</td>
+      <td>4</td>
+      <td>0.600000</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th rowspan="2" valign="top">B</th>
+      <th>8000</th>
+      <td>5</td>
+      <td>4</td>
+      <td>0.700000</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>5</td>
+      <td>4</td>
+      <td>0.700000</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <th rowspan="2" valign="top">C-full</th>
+      <th>8000</th>
+      <td>5</td>
+      <td>0</td>
+      <td>0.000000</td>
+      <td>0</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>5</td>
+      <td>5</td>
+      <td>1.000000</td>
+      <td>5</td>
+    </tr>
+    <tr>
+      <th rowspan="2" valign="top">C-seed-first</th>
+      <th>8000</th>
+      <td>5</td>
+      <td>4</td>
+      <td>0.700000</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>5</td>
+      <td>4</td>
+      <td>0.700000</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <th rowspan="8" valign="top">single_25</th>
+      <th rowspan="2" valign="top">A</th>
+      <th>8000</th>
+      <td>25</td>
+      <td>22</td>
+      <td>0.880000</td>
+      <td>22</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>25</td>
+      <td>22</td>
+      <td>0.880000</td>
+      <td>22</td>
+    </tr>
+    <tr>
+      <th rowspan="2" valign="top">B</th>
+      <th>8000</th>
+      <td>25</td>
+      <td>21</td>
+      <td>0.840000</td>
+      <td>21</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>25</td>
+      <td>21</td>
+      <td>0.840000</td>
+      <td>21</td>
+    </tr>
+    <tr>
+      <th rowspan="2" valign="top">C-full</th>
+      <th>8000</th>
+      <td>25</td>
+      <td>0</td>
+      <td>0.000000</td>
+      <td>0</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>25</td>
+      <td>25</td>
+      <td>1.000000</td>
+      <td>25</td>
+    </tr>
+    <tr>
+      <th rowspan="2" valign="top">C-seed-first</th>
+      <th>8000</th>
+      <td>25</td>
+      <td>22</td>
+      <td>0.880000</td>
+      <td>22</td>
+    </tr>
+    <tr>
+      <th>unlimited</th>
+      <td>25</td>
+      <td>22</td>
+      <td>0.880000</td>
+      <td>22</td>
+    </tr>
+  </tbody>
+</table>
+<p>복합 질문은 5개뿐이다. 같은 문서와 근거를 묶은 개발 질문이며 독립 holdout 또는 실제 사용자 전체 분포가 아니다. 질문 유형별 우열이 나뉘면 최종 선택을 보류한다.</p>
+
+<h2>5. 8,000토큰에서 차이가 난 질문 원문·결과</h2>
+<table border="1" class="dataframe" id="different-cases">
+  <thead>
+    <tr style="text-align: right;">
+      <th>policy</th>
+      <th>company</th>
+      <th>id</th>
+      <th>question</th>
+      <th>A</th>
+      <th>B</th>
+      <th>C-full</th>
+      <th>C-seed-first</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>HDC</td>
+      <td>H01</td>
+      <td>HDC 지주회사 자체의 사업 수익원에는 무엇이 있는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>HDC</td>
+      <td>H02</td>
+      <td>HDC 사업부문별 매출 표를 연결 매출액과 비교하기 전에 내부거래 처리에서 무엇을 주의해야 하는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>HDC</td>
+      <td>H03</td>
+      <td>HDC현대이피가 기존 금속을 대체하는 소재 사업을 강화하기 위해 양수한 사업은 무엇인가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>HDC</td>
+      <td>H05</td>
+      <td>HDC의 통영 발전 사업은 언제 상업운전을 시작했나?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>LG생활건강</td>
+      <td>L02</td>
+      <td>LG생활건강의 생활용품 사업에서 개인 위생 제품과 집안 관리 제품은 어떻게 구분되는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>LG생활건강</td>
+      <td>L03</td>
+      <td>LG생활건강은 코카콜라 제품을 직접 개발하는가, 원액을 받아 제조·판매하는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>LG생활건강</td>
+      <td>L04</td>
+      <td>LG생활건강의 화장품과 음료 사업은 계절적 매출 변동을 어떻게 보완하는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>LG생활건강</td>
+      <td>L05</td>
+      <td>LG생활건강의 해외 연구소는 어느 국가에 있으며 어떤 역량을 강화하는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>LG생활건강</td>
+      <td>M_L</td>
+      <td>LG생활건강의 사업 구분과 화장품·음료 사업의 계절적 매출 보완 관계를 함께 설명해줘.</td>
+      <td>0.500000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>NAVER</td>
+      <td>M_N</td>
+      <td>네이버 서치플랫폼과 쇼핑 사업의 수익원을 비교하고 쇼핑의 광고 외 수익도 설명해줘.</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>NAVER</td>
+      <td>N01</td>
+      <td>네이버의 서치플랫폼은 어떤 광고 사업으로 매출을 만드는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>NAVER</td>
+      <td>N02</td>
+      <td>네이버 쇼핑 사업에서 광고 외에 돈을 버는 경로는 무엇인가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>NAVER</td>
+      <td>N03</td>
+      <td>네이버는 기업 고객 사업을 강화하기 위해 AI와 B2B 조직을 어느 법인 중심으로 통합했나?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>NAVER</td>
+      <td>N04</td>
+      <td>네이버 연결회사가 해외 영업으로 노출되는 환율 위험은 주로 어느 통화와 관련되는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>NAVER</td>
+      <td>N05</td>
+      <td>네이버 연결 연구개발비를 해석할 때 연구개발이 주된 업무인 종속기업의 비용을 어떻게 포함하는지 확인해줘.</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>리노공업</td>
+      <td>M_R</td>
+      <td>리노공업의 해외 거래처 관리 방식과 원자재·에너지 관련 위험을 함께 정리해줘.</td>
+      <td>0.500000</td>
+      <td>0.500000</td>
+      <td>0.000000</td>
+      <td>0.500000</td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>리노공업</td>
+      <td>R02</td>
+      <td>리노공업의 해외 거래처 관리 방식은 무엇인가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>리노공업</td>
+      <td>R03</td>
+      <td>리노공업의 공정가치로 측정되는 금융상품 관련 공시 근거를 찾아줘.</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>18</th>
+      <td>리노공업</td>
+      <td>R04</td>
+      <td>리노공업 퇴직급여 표에서 확정급여채무와 함께 어떤 적립자산 항목을 확인할 수 있나?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>19</th>
+      <td>리노공업</td>
+      <td>R05</td>
+      <td>리노공업이 시장 환경에서 경계하는 원자재·에너지 관련 요인은?</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>20</th>
+      <td>삼성전자</td>
+      <td>M_S</td>
+      <td>삼성전자의 반도체 사업과 하만 전장 사업이 각각 어떤 제품을 만드는지 비교해줘.</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>21</th>
+      <td>삼성전자</td>
+      <td>S01</td>
+      <td>삼성전자가 주식을 일반에 공개한 시점은 언제인가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>22</th>
+      <td>삼성전자</td>
+      <td>S02</td>
+      <td>삼성전자공업에서 지금의 회사명으로 바뀐 날짜는?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>23</th>
+      <td>삼성전자</td>
+      <td>S03</td>
+      <td>삼성전자 본사의 소재지는 어디인가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>24</th>
+      <td>삼성전자</td>
+      <td>S04</td>
+      <td>삼성전자 반도체 사업 부문은 어떤 제품을 주로 만드는가?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>25</th>
+      <td>삼성전자</td>
+      <td>S05</td>
+      <td>삼성전자 전장 사업에 해당하는 하만의 주요 제품은?</td>
+      <td>1.000000</td>
+      <td>1.000000</td>
+      <td>0.000000</td>
+      <td>1.000000</td>
+    </tr>
+  </tbody>
+</table>
+<p>같은 C 검색에서도 C-full/C-seed-first가 달라지면 원인은 문맥 반환 구성과 예산 처리다. 정답을 작은 조각에서 찾았는지, 직접 제목 문맥의 확장에서 찾았는지, 예산 때문에 빠졌는지는 notebook의 검색·문맥 결과와 함께 확인한다. <code>covered_seed_ranks</code>에는 반환 문맥에 온전히 포함된 검색 조각 순위가 저장돼 있다. 이는 문자열 보존 진단이며 제목 의미 관련성이나 LLM 정확도 지표가 아니다.</p>
+
+<h2>6. 속도·비용·GPU 자원</h2>
+<ul><li>실행 전체 wall time: 162.06초. notebook 실행·모델 준비·다운로드·평가를 포함하며 사용자 질의 하나의 지연시간이 아니다.</li>
+<li>E5 GPU 색인 신규 텍스트 3,772개, 후보 합산 구성 시간 10.25초. 후보 사이 동일 텍스트 임베딩을 재사용했으므로 후보별 cold 속도 우열은 판단하지 않는다.</li>
+<li>E5 파라미터 448.81MiB. 해당 프로세스 PyTorch peak allocated 583.77MiB / reserved 662.00MiB. 드라이버·다른 GPU 프로세스·Qwen을 포함한 전체 VRAM이 아니다.</li>
+<li>LLM 0회, OpenAI 임베딩 0회이므로 해당 API 호출 요금은 없다. 전력·전체 CPU RAM·OpenDART 호출 한도 소비는 금액으로 측정하지 않았다.</li>
+<li>큰 문맥 처리와 토큰 수 계산은 CPU에서 일어나며 동일 문자열 토큰 수 캐시를 사용한다. 검색·문맥 조립 시간은 구간 측정이다. 후보 실행 순서·캐시 효과가 있으므로 미세한 시간 차이를 품질보다 우선하지 않는다.</li></ul>
+
+<h2>7. 채택·미채택·보류</h2>
+<table><tr><th>후보</th><th>판단</th><th>이유·한계</th></tr>
+<tr><td>A / B</td><td>기존 비교 기준선 유지. 최종 운영 채택 보류.</td><td>작은 청크 직접 반환과 토큰 부모 확장의 품질·문맥 크기를 보여주는 기준선이다. 모든 기준선의 실제 LLM 답변 정확도는 미검증이다.</td></tr>
+<tr><td>C-full</td><td>무제한 근거 회수의 상한 참고 후보. 2,400 점수로 제목 계층을 탈락시키지 않음.</td><td>넓은 부모 전체로 회수한 근거를 확인한다. 제한된 예산의 실패는 반환 정책 문제를 포함한다. 큰 문맥 자체가 실제 답변에 유리한지는 아직 모른다.</td></tr>
+<tr><td>C-seed-first</td><td>후속 답변 평가 후보로 유지. 최종 채택은 사용자와 결과 검토 후 결정.</td><td>같은 제목 검색에서 조각 보존과 직접 제목 확장을 조합한다. 근거 회수와 입력량이 함께 개선됐는지는 위 실측으로 판단하고, 높은 점수를 운영 답변 정확도로 대체하지 않는다.</td></tr>
+<tr><td>토큰 예산</td><td>이번에는 최종값을 채택하지 않음.</td><td>예산별 민감도는 확인했지만 운영 모델 토크나이저·프롬프트·출력 공간·답변 품질을 아직 평가하지 않았다.</td></tr></table>
+<p>품질이 같으면 작은 입력량을 후속 후보 선정 근거로 사용할 수 있다. 그러나 가장 큰 예산 또는 무제한 Recall 100%만으로 최종안을 자동 채택하지 않는다. 이번에는 src·통합 workflow·API·대시보드를 변경하지 않았다.</p>
+
+<h2>8. 검증·재현·한계</h2>
+<p>skn25에서 전체 code cell을 실행·저장했고 error 출력은 0건이다. 서로 다른 제목의 같은 문자열, 모호 제목, 큰 부모·예산 초과, 검색 조각 보존을 검사했다. custom reviewer의 지적을 재현하고 owner별 중복·prefix 정책을 수정한 뒤 재검토를 받았다. 30번은 코드·출력 모두 변경하지 않았다. 기존 원문·인용문 보존 gate를 통과한 것은 XML 전체 무손실 추출을 증명하지 않는다.</p>
+<p>동일 5개 문서·개발 질문 재사용이며 연도·기업 전체로 일반화하지 않는다. 답변 생성·인용 정확도·할루시네이션·독립 holdout·반복 GPU benchmark는 미수행이다. 실제 답변 평가로 넘어갈 경우 별도로 범위와 모델을 보고해야 한다.</p>
+<details><summary>실행 manifest</summary><pre>{
+  &quot;budgets_e5_tokens&quot;: [
+    null,
+    2400,
+    8000,
+    16000,
+    32000
+  ],
+  &quot;candidate_depth_each&quot;: 20,
+  &quot;companies&quot;: 5,
+  &quot;dataset_type&quot;: &quot;development&quot;,
+  &quot;device&quot;: &quot;cuda:0&quot;,
+  &quot;dtype&quot;: &quot;float32&quot;,
+  &quot;e5_build_seconds&quot;: 10.249998816056177,
+  &quot;evaluation_sha256&quot;: &quot;a8bbc6202b3b0956c7519660a6e760eb1dab9be1d808118bdba1e7557c3c6ebe&quot;,
+  &quot;gpu&quot;: &quot;NVIDIA GeForce RTX 3090&quot;,
+  &quot;gpu_initial_free_MiB&quot;: 16038.6875,
+  &quot;llm_calls&quot;: 0,
+  &quot;model&quot;: &quot;intfloat/multilingual-e5-small&quot;,
+  &quot;model_load_seconds&quot;: 0.37546459888108075,
+  &quot;model_parameter_MiB&quot;: 448.8134765625,
+  &quot;model_revision&quot;: &quot;5697a65b0a002a92fe8c4fc9d495303ffff9c7d2&quot;,
+  &quot;new_embedding_texts&quot;: 3772,
+  &quot;observed_at_utc&quot;: &quot;2026-10-05T17:08:55.478960+00:00&quot;,
+  &quot;openai_embedding_calls&quot;: 0,
+  &quot;packages&quot;: {
+    &quot;kiwipiepy&quot;: &quot;0.23.2&quot;,
+    &quot;llama-index-core&quot;: &quot;0.14.25&quot;,
+    &quot;torch&quot;: &quot;2.11.0&quot;,
+    &quot;transformers&quot;: &quot;4.57.6&quot;
+  },
+  &quot;policies&quot;: [
+    &quot;A&quot;,
+    &quot;B&quot;,
+    &quot;C-full&quot;,
+    &quot;C-seed-first&quot;
+  ],
+  &quot;questions&quot;: 30,
+  &quot;reports&quot;: 5,
+  &quot;rrf_k&quot;: 60,
+  &quot;source30_code_sha256&quot;: &quot;d38daeb5664a0ba916fa908187de7abf39dbf57311771e08b2005065ffc6d952&quot;,
+  &quot;source_xml_sha256&quot;: {
+    &quot;HDC&quot;: &quot;53b41f2833b68f06bfea13a07abed1a7cdb3caf53c44e615cb21a4c736411e9f&quot;,
+    &quot;LG생활건강&quot;: &quot;9ccc7d18e1ba66ce3982f41899d22d1dcb7ae8dfaf784f21a9b176fa294cdb16&quot;,
+    &quot;NAVER&quot;: &quot;b1478f612c3ff07373d14fe9c7638936c77fcea2130aa4ec6202bef90bf3bfa9&quot;,
+    &quot;리노공업&quot;: &quot;a23af2dbcc2f4de4be59c5925ed45fceae84c23f4e78ff3365071f5d6cdbeb93&quot;,
+    &quot;삼성전자&quot;: &quot;b0682fd46de50ecc41f074bb43cb58cf574dd1750343710f169c58ab5066ad2f&quot;
+  },
+  &quot;top_seeds&quot;: 5,
+  &quot;torch_peak_allocated_MiB&quot;: 583.77392578125,
+  &quot;torch_peak_reserved_MiB&quot;: 662.0,
+  &quot;vector_bm25_weights&quot;: [
+    0.5,
+    0.5
+  ]
+}</pre></details>
+<p class="foot">근거: <a href="../../../notebooks/v1/31_heading_context_policy_comparison.ipynb">31번 코드·실행 출력</a> · <a href="30_parent_child_chunking_comparison.html">30번 보고서</a> · <a href="../../EVALUATION_METRICS.md">지표 정의</a> · <a href="../../references/technical/README.md">기술 레퍼런스</a></p>
+</body></html>
