@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-28 E5 길이 보정·하이브리드 및 임베딩 모델 비교</title>
+  <style>
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: #18212f; }
+    h1 { margin-bottom: 8px; } h2 { margin-top: 36px; } h3 { margin-top: 24px; }
+    .sub, .foot { color: #586577; } .card { background: #f6f8fb; border-left: 4px solid #155eef; padding: 15px 19px; margin: 22px 0; }
+    .caution { border-left-color: #b54708; } table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+    th, td { border: 1px solid #dce3ec; padding: 9px; text-align: left; vertical-align: top; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; } .num { white-space: nowrap; text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>28. E5 입력 길이 보정과 검색 비교</h1>
+  <p class="sub">저장된 노트북 출력 확인: 2026-10-05 · 삼성전자·리노공업 2024 사업보고서 각 1건 · 개발 질문 10개 · 노트북 코드 기준 커밋 <code>2636da8</code></p>
+
+  <div class="card">
+    <strong>목적:</strong> 27번에서 발견된 E5 입력 잘림을 없앤 뒤, (1) 문자+E5와 BM25+E5 하이브리드 검색, (2) 로컬 E5와 OpenAI <code>text-embedding-3-small</code> 임베딩을 같은 질문·근거·청크에서 비교한다. 평가 대상은 <em>정답 근거 검색</em>이지 LLM의 최종 답변이 아니다.
+  </div>
+  <div class="card caution">
+    <strong>요약·현재 결정:</strong> E5 한도 초과 청크는 2개에서 0개가 됐고, 정답 근거 10개가 새 청크에 남았다. E5 단독 벡터 검색의 Hit@5가 <strong>9/10</strong>으로 가장 높았다. E5 하이브리드 두 방식은 각각 8/10, OpenAI 단독은 7/10, OpenAI 하이브리드는 각각 6/10이다. 반면 MRR@5는 OpenAI 단독이 0.500으로 E5 단독 0.445보다 높다. <strong>서로 다른 품질 관점과 기업별 편차가 있으므로 최종 검색기·임베딩 모델 채택은 보류</strong>하고, 다음 평가의 임시 품질 기준선으로 E5 단독 검색을 유지한다.
+  </div>
+
+  <h2>1. 무엇을 고정하고 무엇을 비교했나</h2>
+  <table>
+    <tr><th>항목</th><th>이번 실험의 조건</th></tr>
+    <tr><td>원문</td><td>삼성전자 접수번호 <code>20250311001085</code>, 리노공업 <code>20250318000229</code>의 2024 사업보고서 XML. 25번의 제목·표 경계를 표시한 B 추출 규칙을 사용했다.</td></tr>
+    <tr><td>청크</td><td>제목 경계를 우선하고 E5 토크나이저를 분할 기준으로 사용했다. <code>SentenceSplitter(chunk_size=400, chunk_overlap=48)</code>. 모든 방법이 동일한 최종 청크를 검색한다.</td></tr>
+    <tr><td>질문·정답</td><td>삼성전자 5개, 리노공업 5개의 새 문장. 기존 보고서에서 확인한 인용문을 공백 제거 후 한 청크에 포함하는지를 정답으로 판정했다. 두 기업을 알고 작성한 <strong>개발셋</strong>이며 독립 holdout은 아니다.</td></tr>
+    <tr><td>어휘 검색</td><td>문자 2~4-gram <code>HashingVectorizer</code> 또는 Kiwi 형태소 + SQLite FTS5 BM25. 두 어휘 후보의 토큰화와 점수식이 모두 다르다.</td></tr>
+    <tr><td>벡터 검색</td><td>로컬 CPU <code>intfloat/multilingual-e5-small</code>(고정 revision <code>5697a65b...</code>) 또는 OpenAI API <code>text-embedding-3-small</code>. 각 모델에서 청크·질문을 같은 모델로 임베딩해 L2 정규화 후 내적 순위를 얻었다. E5에만 모델 지침에 따른 <code>query:</code>/<code>passage:</code> 접두어를 사용했다.</td></tr>
+    <tr><td>하이브리드</td><td>어휘·벡터 각 상위 20개만 RRF(<code>k=60</code>)로 결합한다. 하이브리드 네 후보에서 이 설정은 같다.</td></tr>
+    <tr><td>지표</td><td>Hit@3/5는 상위 3/5개 안에 근거 청크가 있는 질문 비율, MRR@5는 첫 근거의 역순위를 질문별로 평균한 값이다. Hit은 근거를 <em>찾았는지</em>, MRR은 <em>얼마나 앞에서 찾았는지</em>를 본다.</td></tr>
+  </table>
+
+  <h2>2. E5 입력 길이 문제는 해결됐나</h2>
+  <table>
+    <tr><th>회사</th><th class="num">27번 방식 청크</th><th class="num">E5 한도 초과</th><th class="num">새 청크</th><th class="num">새 초과</th><th class="num">새 최대 입력 토큰</th></tr>
+    <tr><td>삼성전자</td><td class="num">96</td><td class="num">0</td><td class="num">82</td><td class="num">0</td><td class="num">403</td></tr>
+    <tr><td>리노공업</td><td class="num">384</td><td class="num">2</td><td class="num">333</td><td class="num">0</td><td class="num">404</td></tr>
+  </table>
+  <p>두 회사의 415개 새 청크를 모두 E5 토크나이저로 검사했다. 임베딩 코드의 <code>truncation=False</code>와 길이 검사는 초과 입력을 조용히 자르지 않게 한다. 질문 10개의 정답 인용문도 각각 적어도 한 청크에서 확인됐다. 다만 이는 모든 XML 텍스트의 무손실 추출을 증명하지는 않는다.</p>
+  <p>실행 출력의 “2734 &gt; 512” 경고는 <strong>긴 원문 섹션을 분할하기 전에 토큰 수를 셀 때</strong> 발생한 경고다. 최종 임베딩 입력의 최대 길이는 403·404토큰이고 초과 청크는 0개다. 따라서 이 경고를 최종 E5 입력이 잘렸다는 뜻으로 읽으면 안 된다. 기존 480개보다 새 청크가 415개로 줄어든 것은 토크나이저·분할 기준이 달라졌기 때문이며, 검색 품질 개선의 증거는 아니다.</p>
+
+  <h2>3. 검색 품질: 같은 질문 10개</h2>
+  <table>
+    <tr><th>방식</th><th class="num">Hit@3</th><th class="num">Hit@5</th><th class="num">MRR@5</th><th class="num">삼성전자 Hit@5</th><th class="num">리노공업 Hit@5</th></tr>
+    <tr><td>문자 단독</td><td class="num">4/10</td><td class="num">4/10</td><td class="num">0.350</td><td class="num">3/5</td><td class="num">1/5</td></tr>
+    <tr><td>BM25 단독</td><td class="num">3/10</td><td class="num">6/10</td><td class="num">0.320</td><td class="num">4/5</td><td class="num">2/5</td></tr>
+    <tr><td><strong>E5 단독</strong></td><td class="num">7/10</td><td class="num"><strong>9/10</strong></td><td class="num">0.445</td><td class="num">5/5</td><td class="num">4/5</td></tr>
+    <tr><td>OpenAI 단독</td><td class="num">5/10</td><td class="num">7/10</td><td class="num"><strong>0.500</strong></td><td class="num">5/5</td><td class="num">2/5</td></tr>
+    <tr><td>문자+E5</td><td class="num">6/10</td><td class="num">8/10</td><td class="num">0.450</td><td class="num">5/5</td><td class="num">3/5</td></tr>
+    <tr><td>BM25+E5</td><td class="num">6/10</td><td class="num">8/10</td><td class="num">0.467</td><td class="num">5/5</td><td class="num">3/5</td></tr>
+    <tr><td>문자+OpenAI</td><td class="num">5/10</td><td class="num">6/10</td><td class="num">0.408</td><td class="num">5/5</td><td class="num">1/5</td></tr>
+    <tr><td>BM25+OpenAI</td><td class="num">6/10</td><td class="num">6/10</td><td class="num">0.383</td><td class="num">5/5</td><td class="num">1/5</td></tr>
+  </table>
+  <p>모델만 바꾼 직접 비교는 <code>E5 ↔ OpenAI</code>, <code>문자+E5 ↔ 문자+OpenAI</code>, <code>BM25+E5 ↔ BM25+OpenAI</code>다. 세 쌍 모두 이번 Hit@5에서는 E5 쪽이 높다. 그러나 OpenAI 단독의 MRR@5는 더 높다. 삼성전자에서는 OpenAI가 근거를 여러 질문에서 1위로 올렸고, 리노공업에서는 일부 근거를 크게 놓쳤기 때문이다. 즉 “OpenAI가 전반적으로 나쁘다”와 “OpenAI가 더 좋다” 모두 이 결과를 과장한다.</p>
+
+  <h3>하이브리드 두 방식의 차이</h3>
+  <table>
+    <tr><th>질문</th><th>문자+E5</th><th>BM25+E5</th><th>읽어야 할 점</th></tr>
+    <tr><td>R01 납품 단가 조건</td><td>상위 20개 결합 후보 밖</td><td>상위 20개 결합 후보 밖</td><td>근거 청크는 있지만 E5 73위, 문자 116위, BM25 41위여서 두 하이브리드 모두 놓쳤다. 이 실패를 “원문 없음”으로 처리하면 안 된다.</td></tr>
+    <tr><td>R03 공정가치 금융상품</td><td>10위</td><td>3위</td><td>BM25 결합이 개선했다. E5 단독은 1위였으므로 문자 결합은 오히려 근거를 뒤로 밀었다.</td></tr>
+    <tr><td>R05 원자재·유가 위험</td><td>3위</td><td>6위</td><td>반대로 문자 결합만 상위 5개에 근거를 유지했다.</td></tr>
+  </table>
+  <p>두 하이브리드의 Hit@5는 8/10으로 같고 MRR@5는 BM25+E5가 0.467 대 0.450으로 조금 높다. 하지만 R03과 R05의 승패가 뒤바뀐다. 10개 개발 질문의 작은 차이만으로 어휘 arm 하나를 최종 채택하지 않는다. 특히 <strong>E5 단독 9/10보다 두 하이브리드가 낮다</strong>는 점을 먼저 고려해야 한다.</p>
+
+  <h3>E5와 OpenAI 모델의 차이</h3>
+  <table>
+    <tr><th>질문</th><th>E5 단독</th><th>OpenAI 단독</th><th>해석</th></tr>
+    <tr><td>R01 납품 단가 조건</td><td>73위</td><td>9위</td><td>OpenAI가 크게 개선했지만 둘 다 상위 5개에는 들지 못했다.</td></tr>
+    <tr><td>R02 해외 거래처 관리</td><td>3위</td><td>39위</td><td>OpenAI가 놓친 리노공업 근거의 대표 사례다.</td></tr>
+    <tr><td>R05 원자재·유가 위험</td><td>4위</td><td>22위</td><td>이번 질문 표현에서는 E5가 더 안정적으로 찾았다.</td></tr>
+    <tr><td>S02·S03·S04 삼성전자</td><td>3·2·3위</td><td>1·1·1위</td><td>OpenAI의 높은 MRR에 기여한 사례다.</td></tr>
+  </table>
+  <p>OpenAI 단독은 삼성전자 5/5, 리노공업 2/5이고 E5 단독은 각각 5/5, 4/5다. 따라서 현재 10개 질문의 평균 MRR만 보고 OpenAI로 교체하면 리노공업에서 생긴 근거 누락을 놓친다. OpenAI 하이브리드 두 방식은 리노공업에서 각각 1/5로 더 낮았다. 이것은 현재 RRF 상위 20개 설정과 이 질문셋에서의 결과이지 API 모델의 일반적인 성능 단정은 아니다.</p>
+
+  <h2>4. 비용·속도·자원</h2>
+  <table>
+    <tr><th>구성</th><th>저장된 실행값</th><th>해석 범위</th></tr>
+    <tr><td>E5 로컬 준비</td><td>모델 로드 0.2초, 파라미터 약 449 MiB. 82·333개 passage 임베딩 4.9·17.0초. 임베딩 행렬 약 0.12·0.49 MiB.</td><td>이미 캐시된 모델의 이 실행값이다. 최초 다운로드 시간, 프로세스 전체 RAM 또는 GPU 사용량이 아니다. CPU 실행.</td></tr>
+    <tr><td>OpenAI API 준비</td><td>415개 passage + 10개 질문, 총 15회 호출, 성공 응답 기준 181,397 입력 토큰. passage 처리 2.73·7.40초, 질문 10개 묶음 0.29초. 임베딩 행렬 약 0.48·1.95 MiB.</td><td>호출 시간에는 통신·서버 처리 등이 포함된다. 질문 10개를 한 번에 임베딩했으므로 0.29초는 질문당 지연시간이 아니다.</td></tr>
+    <tr><td>OpenAI 비용 추정</td><td>2026-10-05 공식 $0.02/100만 입력 토큰 기준 약 <strong>$0.0036</strong>.</td><td>성공 응답의 <code>usage</code>만 계산했다. 재시도, 환율, 실제 청구액과 다를 수 있으며 재실행하면 추가 과금된다.</td></tr>
+    <tr><td>어휘 인덱스</td><td>문자 인덱스 0.04·0.15초, BM25 형태소화·인덱스 1.76·1.51초. BM25 SQLite 할당 페이지 0.06·0.14 MB.</td><td>두 회사의 한 번 실행 준비 비용이다. 전체 서비스 저장 용량이나 RAM 사용량이 아니다.</td></tr>
+  </table>
+  <p>로컬 E5의 질문별 검색 시간 중앙값은 단독 16.145 ms, 문자+E5 18.425 ms, BM25+E5 17.655 ms였다. OpenAI는 묶음 API 호출로 측정했으므로 이 로컬 단건 값과 속도 우열을 비교할 수 없다. 현재 선택에서는 근거 검색 품질을 속도보다 우선한다.</p>
+
+  <h2>5. 채택·미채택과 다음 판단</h2>
+  <table>
+    <tr><th>후보·결정</th><th>이유와 남은 검증</th></tr>
+    <tr><td>E5 토크나이저 기준 분할: <strong>채택</strong></td><td>초과 입력 2개를 0개로 줄였고 정답 인용문 10개를 유지했다. 이는 <em>입력 길이 안전장치</em>의 채택이지, 최종 청킹 방식 확정은 아니다.</td></tr>
+    <tr><td>E5 단독 벡터 검색: <strong>다음 실험의 조건부 기준선</strong></td><td>이번 Hit@5 9/10으로 가장 많은 근거를 찾았다. 단, R01을 크게 놓쳤고 독립 holdout에서 재확인이 필요하다.</td></tr>
+    <tr><td>문자+E5, BM25+E5: <strong>최종 채택 보류</strong></td><td>둘 다 8/10으로 E5 단독보다 낮다. BM25+E5의 MRR이 조금 높지만 R03/R05에서 상반된 결과가 나온다. 현재 결합 설정의 효과만 확인했다.</td></tr>
+    <tr><td>OpenAI 단독: <strong>E5의 즉시 대체안으로 미채택</strong></td><td>MRR은 높으나 Hit@5는 7/10으로 낮고 리노공업에서 2/5만 회수했다. API 비용이 매우 작아 비용 때문에 제외한 것은 아니다. 넓은 독립 질문에서 재비교할 수 있다.</td></tr>
+    <tr><td>문자+OpenAI, BM25+OpenAI: <strong>현재 설정에서는 미채택</strong></td><td>Hit@5가 각각 6/10이며 리노공업은 각각 1/5다. 이 결론은 모델 단독 품질과 RRF 결합 효과를 구분해 읽어야 한다.</td></tr>
+  </table>
+  <div class="card caution">
+    <strong>한계:</strong> 질문 10개와 문서 2건은 개발셋이고, 정답은 특정 인용문이 한 청크에 있는지만 판정한다. 의미상 동등한 다른 근거나 여러 청크의 결합 근거는 인정하지 않는다. E5와 OpenAI는 같은 청크로 비교했으므로 공정하지만, OpenAI의 더 긴 입력 한도를 활용한 별도 최적 청킹까지 평가한 것은 아니다. 27번과는 질문·청크가 함께 바뀌어 검색 지표를 직접 전후 비교할 수 없다. 이 결과로 최종 사업보고서 RAG 또는 답변 품질을 확정하지 않는다.
+  </div>
+  <p>다음 단계는 <strong>별도 독립 질문·근거</strong>로 현재 E5 단독 기준선과 필요성이 확인된 대안을 재검증하는 것이다. 청킹·검색·생성 답변을 동시에 바꾸지 말고, 근거 검색에서 확인된 실패가 사용자 질문에 얼마나 중요한지 먼저 살핀다. 이번 결과만으로 새로운 최종 파이프라인이나 운영 코드를 만들지 않는다.</p>
+
+  <p class="foot">근거: <a href="../../../notebooks/v1/28_hybrid_retrieval_paired_comparison.ipynb">28번 노트북의 저장된 출력</a>, <a href="https://huggingface.co/intfloat/multilingual-e5-small/raw/main/README.md">multilingual-E5-small 모델 카드</a>, <a href="https://developers.openai.com/api/docs/guides/embeddings">OpenAI Docs: 임베딩 가이드</a>, <a href="https://developers.openai.com/api/docs/models/text-embedding-3-small">OpenAI Docs: 모델·가격</a>, <a href="https://www.sqlite.org/fts5.html#the_bm25_function">SQLite FTS5 BM25</a>.</p>
+</body>
+</html>
