@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-29 확대 개발셋의 E5·BM25 RRF 가중치 비교</title>
+  <style>
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: #18212f; }
+    h1 { margin-bottom: 8px; } h2 { margin-top: 36px; } h3 { margin-top: 24px; }
+    .sub, .foot { color: #586577; } .card { background: #f6f8fb; border-left: 4px solid #155eef; padding: 15px 19px; margin: 22px 0; }
+    .caution { border-left-color: #b54708; } table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+    th, td { border: 1px solid #dce3ec; padding: 9px; text-align: left; vertical-align: top; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; } .num { white-space: nowrap; text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>29. 확대 개발셋에서 E5·BM25 결합 가중치 비교</h1>
+  <p class="sub">저장 출력 확인: 2026-10-05 · 실행 기록: 2026-10-05 12:50:38 UTC · 코드 기준 커밋 <code>e604c3a</code> · 개발 질문 25개</p>
+  <div class="card">
+    <strong>테스트 목적:</strong> E5 벡터 검색과 Kiwi BM25 검색을 함께 사용할 때 어느 결합 비율이 정답 근거를 더 잘 찾는지 확인한다. 28번의 2기업·10질문에서 5기업·25질문으로 넓히고, 같은 청크와 검색 결과에서 <strong>가중치만</strong> 바꿨다. 청킹 방식, 임베딩 모델, 구조화 SQL 검색, LLM 답변 품질을 비교한 실험은 아니다.
+  </div>
+  <div class="card caution">
+    <strong>간단한 결과:</strong> 벡터:BM25 <strong>5:5</strong>가 Hit@5 <strong>22/25(88%)</strong>, 알려진 근거 청크 Recall@5 <strong>0.79</strong>로 가장 높았다. 반면 <strong>BM25 단독</strong>은 MRR@5 <strong>0.5913</strong>으로 가장 높지만 Hit@5는 18/25(72%)다. <strong>누락을 줄이는 성능과 첫 근거 순위의 승자가 다르므로 최종 채택은 보류</strong>한다. 다음 청킹 비교에 5:5를 임시 기준선으로 사용하는 것은 제안이며, 사용자 승인 전 확정 정책이 아니다.
+  </div>
+
+  <h2>1. 목적·가설·고정 조건</h2>
+  <p>가설은 두 검색기의 상호 보완으로 단독 검색보다 많은 질문에서 근거를 찾을 수 있다는 것이다. 반대로 부적절한 결합은 한 검색기가 잘 찾은 근거를 뒤로 밀 수 있다. 평균 성능과 개별 실패를 함께 확인한다.</p>
+  <table>
+    <tr><th>항목</th><th>조건</th></tr>
+    <tr><td>문서</td><td>삼성전자, 리노공업, NAVER, LG생활건강, HDC의 2024 사업보고서 각 1건. 각각 접수번호 <code>20250311001085</code>, <code>20250318000229</code>, <code>20250318000645</code>, <code>20250317000790</code>, <code>20250318001151</code>.</td></tr>
+    <tr><td>평가셋</td><td>기업당 5문항, 총 25개. 삼성전자·리노공업 질문은 28번 개발셋을 재사용했고, 추가 기업 질문은 공식 IR 사업보고서에서 근거를 수집했다. 모두 개발셋이며 독립 holdout이 아니다.</td></tr>
+    <tr><td>필터</td><td>질문마다 지정된 기업·보고서 안에서만 검색한다. 기업·사업연도 식별과 전체 기업 통합 검색은 평가하지 않았다.</td></tr>
+    <tr><td>추출·청킹</td><td>B 제목·표 경계 표시 + 제목별 SentenceSplitter, E5 기준 400토큰·48토큰 overlap. Parent-child 청킹이 아니다. 전체 2,530청크.</td></tr>
+    <tr><td>검색기</td><td>CPU <code>intfloat/multilingual-e5-small</code>와 Kiwi 형태소 + 메모리 SQLite FTS5 BM25. 문자 n-gram 검색과 OpenAI 임베딩은 이번 후보에 없다.</td></tr>
+    <tr><td>결합</td><td>각 검색기 상위 20개, RRF 상수 60. 벡터 가중치 w일 때 점수는 <code>w/(60+벡터순위) + (1-w)/(60+BM25순위)</code>다. 해당 arm 상위 20개 밖이면 그 arm의 기여는 0이다.</td></tr>
+    <tr><td>비율</td><td><code>10:0</code>, <code>7:3</code>, <code>5:5</code>, <code>3:7</code>, <code>0:10</code>. 순위 점수의 영향력 비율이지 결과 문서 개수 비율이 아니다.</td></tr>
+    <tr><td>공통 재사용</td><td>한 질문의 E5·BM25 순위를 한 번씩 계산하고 다섯 비율에 재사용했다. 임베딩 입력에 정답 인용문은 넣지 않았다.</td></tr>
+  </table>
+  <p>가중치마다 25문항, 총 125개 후보별 결과다. 이것은 서로 독립적인 질문 125개를 뜻하지 않는다.</p>
+
+  <h2>2. 실행과 입력 안전 확인</h2>
+  <p>10개 code cell에 실행 번호 1~10이 있고 저장된 error 출력은 0건이다. 이전 L01·L05 오류의 원인인 이스케이프되지 않은 <code>&amp;</code>를 추출 전에 보정한 버전으로 실행했다. 정답은 바꾸지 않았다. 25문항 모두 추출 텍스트와 적어도 한 청크에 인용문이 존재한다.</p>
+  <table>
+    <tr><th>기업</th><th class="num">청크 수</th><th class="num">최대 E5 입력 토큰</th><th class="num">512 초과</th></tr>
+    <tr><td>삼성전자</td><td class="num">82</td><td class="num">403</td><td class="num">0</td></tr>
+    <tr><td>리노공업</td><td class="num">333</td><td class="num">404</td><td class="num">0</td></tr>
+    <tr><td>NAVER</td><td class="num">1,168</td><td class="num">404</td><td class="num">0</td></tr>
+    <tr><td>LG생활건강</td><td class="num">824</td><td class="num">404</td><td class="num">0</td></tr>
+    <tr><td>HDC</td><td class="num">123</td><td class="num">404</td><td class="num">0</td></tr>
+  </table>
+  <p>“2751 &gt; 512” 경고는 긴 섹션을 분할하기 전 토큰 수를 세는 단계에서 발생했다. 최종 청크의 초과는 0건이며 입력은 조용히 잘리지 않았다. tqdm의 IProgress 경고도 실행 중단 오류가 아니다. 다만 이번 확인은 XML 본문 전체의 무손실 추출을 증명하지 않는다.</p>
+
+  <h2>3. 전체 검색 품질</h2>
+  <table id="quality">
+    <tr><th>벡터:BM25</th><th class="num">Hit@3</th><th class="num">Hit@5</th><th class="num">MRR@5</th><th class="num">알려진 근거 Recall@5</th></tr>
+    <tr><td>10:0 — E5 단독</td><td class="num">12/25 (48%)</td><td class="num">18/25 (72%)</td><td class="num">0.367333</td><td class="num">0.63</td></tr>
+    <tr><td>7:3</td><td class="num">17/25 (68%)</td><td class="num">19/25 (76%)</td><td class="num">0.500000</td><td class="num">0.70</td></tr>
+    <tr><td><strong>5:5</strong></td><td class="num"><strong>18/25 (72%)</strong></td><td class="num"><strong>22/25 (88%)</strong></td><td class="num">0.556000</td><td class="num"><strong>0.79</strong></td></tr>
+    <tr><td>3:7</td><td class="num">17/25 (68%)</td><td class="num">21/25 (84%)</td><td class="num">0.562667</td><td class="num">0.78</td></tr>
+    <tr><td>0:10 — BM25 단독</td><td class="num">16/25 (64%)</td><td class="num">18/25 (72%)</td><td class="num"><strong>0.591333</strong></td><td class="num">0.66</td></tr>
+  </table>
+  <p><strong>Hit@5</strong>는 상위 5개에 알려진 근거가 하나라도 있는 질문 비율이다. 5:5는 두 단독 방식보다 각각 4문항, 16%p 높다. <strong>MRR@5</strong>는 첫 근거의 역순위를 평균한다. 1위는 1, 2위는 0.5, 상위 5개 실패는 0으로 계산한다. BM25 단독의 1위 적중은 13문항, 5:5는 9문항이라 BM25는 더 자주 놓쳐도 MRR이 높다.</p>
+  <p><strong>Recall@5</strong>는 질문별로 “상위 5개에서 찾은 정답 청크 수 ÷ 알려진 전체 정답 청크 수”를 계산한 뒤 평균한다. 같은 인용문이 여러 청크에 있으면 모두 알려진 정답으로 센다. 따라서 Hit@5 0.88과 Recall@5 0.79는 모순이 아니다. 문서의 의미상 관련 근거를 모두 주석화한 완전한 Recall은 아니다.</p>
+  <p>3:7은 5:5보다 MRR이 0.006667 높지만 Hit@5가 1문항 낮다. 미세한 차이로 단정하지 않는다. 기업당 질문 수가 모두 5개라 이번 기업 macro 평균은 전체 질문 평균과 같다.</p>
+
+  <h2>4. 기업별 편차와 구체적 사례</h2>
+  <table id="company-hit">
+    <tr><th>기업</th><th class="num">10:0 Hit@5</th><th class="num">7:3</th><th class="num">5:5</th><th class="num">3:7</th><th class="num">0:10</th></tr>
+    <tr><td>삼성전자</td><td class="num">5/5</td><td class="num">5/5</td><td class="num">5/5</td><td class="num">5/5</td><td class="num">4/5</td></tr>
+    <tr><td>리노공업</td><td class="num">4/5</td><td class="num">3/5</td><td class="num">4/5</td><td class="num">3/5</td><td class="num">1/5</td></tr>
+    <tr><td>NAVER</td><td class="num">5/5</td><td class="num">5/5</td><td class="num">5/5</td><td class="num">5/5</td><td class="num">5/5</td></tr>
+    <tr><td>LG생활건강</td><td class="num">1/5</td><td class="num">2/5</td><td class="num">4/5</td><td class="num">4/5</td><td class="num">3/5</td></tr>
+    <tr><td>HDC</td><td class="num">3/5</td><td class="num">4/5</td><td class="num">4/5</td><td class="num">4/5</td><td class="num">5/5</td></tr>
+  </table>
+  <p>삼성전자·리노공업만 보면 E5 단독이 유리했지만, 추가 기업에서는 BM25가 보완하는 사례가 확인됐다. 특히 LG생활건강의 1/5 → 4/5가 5:5의 전체 개선에 기여했다. 이것은 이번 질문과 문서에서 관측한 차이이지 기업·업종별 최적 검색법이 확정됐다는 뜻은 아니다.</p>
+  <table>
+    <tr><th>문항·질문</th><th>E5 단독</th><th>5:5</th><th>BM25 단독</th><th>해석</th></tr>
+    <tr><td>L04: 화장품·음료의 계절적 매출 변동 보완</td><td>12위</td><td>2위</td><td>1위</td><td>BM25가 찾은 근거를 결합해 E5의 상위 5개 누락을 회복했다.</td></tr>
+    <tr><td>R03: 공정가치 금융상품의 공시 근거</td><td>1위</td><td>3위</td><td>17위</td><td>E5가 잘 찾았고 결합은 첫 근거를 뒤로 밀었다. 하이브리드가 항상 순위를 개선하지는 않는다.</td></tr>
+    <tr><td>H04: 아이파크몰의 입점 사업자와 임대수익</td><td>상위 20개 밖</td><td>9위</td><td>2위</td><td>BM25 단독만 상위 5개 성공. 결합 시 한 arm에만 강한 근거가 밀릴 수 있다.</td></tr>
+    <tr><td>R05: 원자재·에너지 관련 위험</td><td>4위</td><td>5위</td><td>12위</td><td>3:7은 7위로 실패한다. BM25 비중을 높였다고 모든 질문에서 좋아지지 않는다.</td></tr>
+  </table>
+
+  <h2>5. 5:5가 놓친 세 문항과 개선 범위</h2>
+  <table>
+    <tr><th>문항</th><th>질문</th><th>관측된 원인</th><th>구분</th></tr>
+    <tr><td>R01</td><td>리노공업은 납품 단가를 정할 때 고객 주문에서 무엇을 살피는가?</td><td>전체 E5 순위 74위, BM25 41위. 두 검색기의 상위 20개 후보에 근거가 없다.</td><td>후보 회수 실패. 현재 후보를 유지하면 가중치만 바꿔서는 복구할 수 없다.</td></tr>
+    <tr><td>L01</td><td>LG생활건강의 핵심 사업은 어떤 세 영역으로 구성되는가?</td><td>E5 19위, BM25 6위, 5:5 결합 8위. 근거는 있으나 상위 5개 밖이다.</td><td>근거 순위 문제. 추출 오류나 원문 부재가 아니다.</td></tr>
+    <tr><td>H04</td><td>HDC아이파크몰은 백화점 외에 어떤 입점 사업자로 임대수익을 확보하는가?</td><td>BM25 2위의 근거가 5:5에서는 9위로 내려갔다.</td><td>결합 순위 문제. 후보 회수 문제와 별개다.</td></tr>
+  </table>
+  <p>후보 깊이 확대, reranking, 다른 청킹은 각각 개선 후보일 뿐이다. 결과를 보지 않고 해결된다고 단정하지 않는다. 관련 비교를 승인받아 진행할 때 위 실패를 함께 확인한다. 가중치를 더 촘촘하게 계속 튜닝하는 것이 지금의 유일한 다음 선택은 아니다.</p>
+
+  <h2>6. 비용·속도·자원</h2>
+  <table id="latency">
+    <tr><th>벡터:BM25</th><th class="num">검색 구성시간 중앙값 ms</th><th class="num">p95 ms</th><th class="num">결합 중앙값 ms</th></tr>
+    <tr><td>10:0</td><td class="num">14.946</td><td class="num">24.198</td><td class="num">0.086</td></tr>
+    <tr><td>7:3</td><td class="num">16.361</td><td class="num">25.674</td><td class="num">0.050</td></tr>
+    <tr><td>5:5</td><td class="num">16.355</td><td class="num">25.667</td><td class="num">0.044</td></tr>
+    <tr><td>3:7</td><td class="num">16.353</td><td class="num">25.665</td><td class="num">0.040</td></tr>
+    <tr><td>0:10</td><td class="num">1.530</td><td class="num">2.594</td><td class="num">0.025</td></tr>
+  </table>
+  <p>표의 시간은 공통으로 측정한 arm별 실행시간 중 해당 후보가 사용하는 arm의 시간과 결합시간을 더한 값이다. 매 비율의 독립 운영 요청을 다섯 번 실행한 값은 아니다. CPU 질문 임베딩·검색은 포함하나 OpenDART 다운로드, 문서 인덱싱, 서버 통신, LLM 답변 생성은 제외한다. 하이브리드 세 비율의 미세한 시간 차이는 품질 선택 근거로 쓰지 않는다.</p>
+  <p>CPU E5 문서 임베딩 준비 합계는 약 <strong>127.71초</strong>, 모델 로드는 <strong>0.23초</strong>, 파라미터 메모리는 <strong>448.8 MiB</strong>였다. 이미 캐시된 모델의 실행이며 최초 다운로드·프로세스 전체 RAM peak·GPU VRAM은 측정하지 않았다. Qwen GPU 설정은 변경하지 않았다.</p>
+  <p>기록된 크기 합계는 XML <strong>25.11 MiB</strong>, 추출 텍스트 UTF-8 <strong>2.33 MiB</strong>, E5 벡터 배열 <strong>3.71 MiB</strong>, SQLite 할당 페이지 <strong>1.00 MiB</strong>다. SQLite는 메모리 인덱스이며, 이 수치를 최종 서비스의 디스크·RAM 총사용량이나 전체 OpenDART 저장 용량으로 해석하지 않는다.</p>
+  <p>LLM·OpenAI 임베딩 호출은 각각 <strong>0회</strong>라 해당 API 과금은 없다. 로컬 CPU·RAM·전력 소비와 OpenDART 호출 제한은 별도이며, 금액은 측정하지 않았다. 용량만 보면 이번 문서 5건에 삭제 정책을 강제할 근거는 없다.</p>
+
+  <h2>7. 채택·미채택·보류 판단</h2>
+  <table>
+    <tr><th>후보</th><th>현재 상태</th><th>이유</th></tr>
+    <tr><td>10:0</td><td>최종 채택 보류, 비교 기준 후보 유지</td><td>Hit@5 72%로 5:5보다 낮고 LG생활건강에서 1/5다. 벡터 단독의 장점이 있는 문항은 남아 있어 폐기하지 않는다.</td></tr>
+    <tr><td>7:3</td><td>최종 채택 보류, 후속 우선순위 낮음</td><td>이번 전체 집계에서는 5:5보다 Hit@3/5·MRR·Recall이 모두 낮다. 일부 문항의 순위 장점은 있으며 일반적인 열위로 단정하지 않는다.</td></tr>
+    <tr><td>5:5</td><td>최종 채택 보류, 다음 비교의 임시 기준선으로 제안</td><td>Hit@3/5와 알려진 근거 Recall이 가장 높다. 다만 BM25 단독보다 MRR이 낮고 세 질문을 놓친다. 사용자의 지표 충돌 시 보류 원칙을 유지한다.</td></tr>
+    <tr><td>3:7</td><td>최종 채택 보류</td><td>5:5보다 MRR은 소폭 높고 Hit@5·Recall은 낮다. 현재 차이로 우열을 확정하지 않는다.</td></tr>
+    <tr><td>0:10</td><td>최종 채택 보류, 순위 품질 비교 후보 유지</td><td>MRR과 구성시간에 장점이 있지만 7/25 질문에서 상위 5개 근거를 놓친다. 비용·속도만으로 품질 손실을 수용하지 않는다.</td></tr>
+  </table>
+  <p><strong>확정적으로 미채택·폐기한 검색 후보는 없다.</strong> 현 결과의 지표 승자가 갈리므로 보류를 명시한다. 모든 후보를 최종 운영 코드에 옮기는 것도 승인하지 않았다.</p>
+
+  <h2>8. 한계·재현·남은 판단</h2>
+  <p>5기업·25질문은 독립 holdout이나 실사용 로그가 아니고 한 사업연도만 다룬다. 기업별 5문항, 위험·연구개발 유형별 2문항 등 표본이 작다. 통계적 유의성, 다른 업종·연도·장문 질의 일반화는 확인하지 않았다. 첫 두 회사에서는 E5 단독이 상대적으로 강하고 추가 회사에서 BM25가 보완했으므로, 처음 설정한 기준선만 보고 결론내리지 않는다.</p>
+  <p>정답은 알려진 특정 인용문을 완전히 포함하는 청크로 정의했다. 의미가 같은 다른 구간이나 여러 청크를 합친 근거는 자동 인정하지 않는다. 중복 인용문의 청크 개수도 Recall에 영향을 준다. 이번 지표는 최종 답변 정확도·근거 충실도·투자 분석 유용성 점수가 아니다. 청킹 자체도 고정했으므로 parent-child 청킹의 우위는 아직 알 수 없다.</p>
+  <p>추출 코드의 <code>&amp;</code> 처리와 문서·질문 범위가 28번과 달라, 이전 보고서 숫자와 단순 전후 개선률을 계산하지 않는다. 29번 내부의 동일 조건 비교가 판단 근거다. 다음에는 가중치 최종 채택 보류와 별개로 사용할 임시 기준선에 합의하고, 이미 요청된 제목 경계 청킹과 parent-child 비교에서 근거 회수·순위·문맥 크기를 확인할 수 있다. 새 notebook이나 통합 구현은 별도 요청 전까지 진행하지 않는다.</p>
+  <p>재현 정보: <code>skn25</code>, E5 revision <code>5697a65b0a002a92fe8c4fc9d495303ffff9c7d2</code>, 질문·정답 SHA256 <code>3005bdf10873856eb367da65ccebd7597edd6c230ec9ee7caeea101bd637cffd</code>, 함수 AST SHA256 <code>2883c91a526dfb81e1aefe9919d5d651c0436ec19805c89cf42ea54662761bd2</code>. 패키지: numpy 2.3.5, pandas 3.0.3, torch 2.11.0, transformers 4.57.6, kiwipiepy 0.23.2, llama-index-core 0.14.25, beautifulsoup4 4.14.3.</p>
+  <p class="foot">근거: <a href="../../../notebooks/v1/29_rrf_weight_comparison.ipynb">29번 notebook의 저장된 출력·계산 코드</a>, <a href="../../EVALUATION_METRICS.md">프로젝트 평가 지표 정의</a>. 이 보고서의 모든 실측 수치는 해당 실행 기록을 기준으로 한다.</p>
+</body>
+</html>
