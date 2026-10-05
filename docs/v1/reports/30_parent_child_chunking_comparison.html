@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1-30 제목 경계·토큰 Parent-child·제목 계층 청킹 비교</title>
+  <style>
+    body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.65; color: #18212f; }
+    h1 { margin-bottom: 8px; } h2 { margin-top: 36px; } h3 { margin-top: 24px; }
+    .sub, .foot { color: #586577; } .card { background: #f6f8fb; border-left: 4px solid #155eef; padding: 15px 19px; margin: 22px 0; }
+    .caution { border-left-color: #b54708; } table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+    th, td { border: 1px solid #dce3ec; padding: 9px; text-align: left; vertical-align: top; } th { background: #eef3f9; }
+    code { background: #f0f3f7; padding: 2px 5px; overflow-wrap: anywhere; } .num { white-space: nowrap; text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>30. 제목 경계·토큰 Parent-child·제목 계층 청킹 비교</h1>
+  <p class="sub">저장 출력 확인: 2026-10-06 · 실행 기록: 2026-10-05 16:10:43 UTC / 2026-10-06 01:10:43 KST · 코드 기준 커밋 <code>6436c82</code> · 개발 질문 30개</p>
+  <div class="card">
+    <strong>테스트 목적:</strong> 검색 방식을 E5 + Kiwi BM25, RRF 5:5로 고정한 상태에서 청킹과 부모 문맥 반환 방식이 근거 회수에 미치는 영향을 비교한다. 작은 검색 단위에서 근거를 찾는 성능뿐 아니라, 부모로 확장한 근거를 동일한 문맥 예산 안에 담을 수 있는지도 확인한다. LLM 답변 품질이나 구조화 SQL 검색을 평가한 실험은 아니다.
+  </div>
+  <div class="card caution">
+    <strong>간단한 결과:</strong> A는 예산 적용 후 Hit@5 <strong>26/30(86.7%)</strong>, 근거 Recall <strong>0.8333</strong>으로 전체 근거 회수가 가장 높았다. B는 각각 <strong>23/30(76.7%)</strong>, <strong>0.7500</strong>이지만, 복합 질문 Recall은 A보다 높았다(0.70 대 0.60). C는 확장 문맥에 모든 정답 근거가 있었으나, 첫 문맥부터 2,400토큰을 넘어서 전부 반환되지 않았다. <strong>C의 예산 점수 0은 제목 계층 검색 자체의 실패가 아니라 현재 부모 반환·예산 정책의 결과</strong>다. A를 다음 평가 기준선으로 유지할 것을 권장하며, 최종 운영 구조는 확정하지 않는다.
+  </div>
+
+  <h2>1. 비교 후보와 데이터 흐름</h2>
+  <table id="methods">
+    <tr><th>후보</th><th>검색 단위</th><th>검색 후 반환 단위</th><th>비교에서 바뀐 부분</th></tr>
+    <tr><td>A: 제목 경계 우선<br><code>title_boundary</code></td><td>제목별 본문을 400토큰, overlap 48로 나눈 작은 청크</td><td>찾은 작은 청크 자체</td><td>기존 기준선. 제목 경계는 존중하지만 실제 XML 제목의 부모·자식 관계로 확장하지 않는다.</td></tr>
+    <tr><td>B: 토큰 Parent-child<br><code>parent_child</code></td><td>제목별 본문에서 1,200토큰 부모 → 400토큰 자식으로 분할</td><td>찾은 자식이 속한 부모, 동일 부모 중복 제거</td><td>토큰 단위 부모·자식 분할과 부모 확장. 부모가 문서의 실제 상위 제목과 반드시 같지는 않다.</td></tr>
+    <tr><td>C: 제목 계층 Parent-child<br><code>heading_parent_child</code></td><td>XML SECTION/TITLE/SUBTITLE의 실제 계층을 보존한 제목별 본문. 긴 검색 본문만 400토큰으로 추가 분할</td><td>실제 제목 부모의 전체 문맥. 하위 제목을 가진 노드의 직접 본문은 해당 노드 전체로 확장</td><td>실제 문서 계층과 부모 전체 반환. B의 1,200토큰 부모 제한은 적용하지 않는다.</td></tr>
+  </table>
+  <p>공통 흐름은 <code>질문 → 지정 기업·보고서의 E5/BM25 검색 → RRF 결합 상위 5개 → 후보별 문맥 반환 → 2,400토큰 예산 적용 → 정답 근거 포함 여부 측정</code>이다. B/C는 부모 ID 중복을 제거하지만, 서로 다른 부모 문맥 사이의 내용 중복까지 제거하는 정책은 아니다.</p>
+  <p>가설은 부모 확장이 작은 청크의 경계 밖에 있는 근거를 보완한다는 것이다. 반대로 너무 큰 부모는 관련 없는 내용을 함께 늘리고, 한정된 입력 예산에서 뒤쪽 근거를 밀어낼 수 있다. 이번 실험은 청킹 경계와 반환 정책을 함께 비교하므로, 결과 차이를 부모 확장 하나의 효과로만 해석하지 않는다.</p>
+
+  <h2>2. 고정 조건·실행 확인</h2>
+  <table>
+    <tr><th>항목</th><th>조건</th></tr>
+    <tr><td>문서</td><td>삼성전자, 리노공업, NAVER, LG생활건강, HDC의 2024 사업보고서 각 1건. 접수번호는 순서대로 <code>20250311001085</code>, <code>20250318000229</code>, <code>20250318000645</code>, <code>20250317000790</code>, <code>20250318001151</code>.</td></tr>
+    <tr><td>평가셋</td><td>기존 단일 근거 질문 25개 + 기업당 복합 질문 1개씩 5개 = 30개. 단일 질문은 정답 근거 ID 1개, 복합 질문은 2개다. 후보별 30회, 총 90개의 비교 기록이며 독립 질문 90개가 아니다.</td></tr>
+    <tr><td>데이터 분할</td><td>모두 개발셋. 독립 holdout이 아니며, 기업·보고서는 질문별로 미리 지정한다. 사용자 입력의 기업·기간 식별은 이번 대상이 아니다.</td></tr>
+    <tr><td>파싱·근거</td><td>같은 XML 및 기존 B 추출 로직을 사용한다. 정답 인용문은 추출 본문과 후보별 반환 문맥에서 확인한다. 임베딩 입력에 정답 인용문을 추가하지 않는다.</td></tr>
+    <tr><td>임베딩</td><td><code>intfloat/multilingual-e5-small</code>, revision <code>5697a65b0a002a92fe8c4fc9d495303ffff9c7d2</code>, CPU. 실제 검색 입력 최대 토큰은 A 404, B 404, C 504로 모두 512 이하.</td></tr>
+    <tr><td>검색·결합</td><td>Kiwi + 메모리 SQLite FTS5 BM25와 E5 벡터 검색의 상위 20개씩을 RRF 상수 60, 가중치 0.5:0.5로 결합. 상위 검색 단위 5개를 기준으로 문맥을 반환한다.</td></tr>
+    <tr><td>문맥 예산</td><td>E5 토크나이저 기준 2,400토큰. 순위대로 문맥 단위를 통째로 넣고 다음 단위가 넘치면 중단한다. 넘치는 문맥의 일부 잘라 넣기, 건너뛰고 뒤의 작은 문맥 넣기는 하지 않는다.</td></tr>
+    <tr><td>호출·실행</td><td>LLM 호출 0회, OpenAI 임베딩 호출 0회. 저장된 코드 셀 13개에 실행 번호 2~14가 있고 error 출력 0건. 실행 후 코드 변경은 없으며 HEAD의 셀 source와 동일하다.</td></tr>
+  </table>
+  <p>이번 30번은 실행된 CPU 조건 그대로 보존한다. 다음 E5 실험부터 GPU 0(<code>cuda:0</code>)을 사용하라는 사용자 요청은 이번 결과와 별개의 후속 실행 조건이다. CPU 결과에서 GPU 속도나 VRAM 사용량을 추정해 성능 수치로 기록하지 않는다.</p>
+
+  <h2>3. 전체 결과: 검색과 문맥 전달을 구분한다</h2>
+  <table id="quality">
+    <tr><th>지표</th><th class="num">A 제목 경계</th><th class="num">B 토큰 부모·자식</th><th class="num">C 제목 계층</th></tr>
+    <tr data-metric="leaf_hit_at_5"><td>검색 단위 Hit@5</td><td class="num">26/30 (86.7%)</td><td class="num">24/30 (80.0%)</td><td class="num">26/30 (86.7%)</td></tr>
+    <tr data-metric="leaf_mrr_at_5"><td>검색 단위 MRR@5</td><td class="num">0.547778</td><td class="num">0.574444</td><td class="num">0.564444</td></tr>
+    <tr data-metric="leaf_evidence_recall_at_5"><td>검색 단위 근거 Recall@5</td><td class="num">0.833333</td><td class="num">0.766667</td><td class="num">0.833333</td></tr>
+    <tr data-metric="context_hit_at_5"><td>확장 후·예산 적용 전 문맥 Hit@5</td><td class="num">26/30 (86.7%)</td><td class="num">25/30 (83.3%)</td><td class="num">30/30 (100%)</td></tr>
+    <tr data-metric="context_recall_at_5"><td>예산 적용 전 문맥 근거 Recall</td><td class="num">0.833333</td><td class="num">0.816667</td><td class="num">1.000000</td></tr>
+    <tr data-metric="budget_context_hit_at_5"><td><strong>예산 적용 후 문맥 Hit</strong></td><td class="num"><strong>26/30 (86.7%)</strong></td><td class="num">23/30 (76.7%)</td><td class="num">0/30 (0%)</td></tr>
+    <tr data-metric="budget_context_recall_at_5"><td><strong>예산 적용 후 문맥 근거 Recall</strong></td><td class="num"><strong>0.833333</strong></td><td class="num">0.750000</td><td class="num">0.000000</td></tr>
+    <tr><td>필요한 정답 근거를 전부 담은 질문</td><td class="num">24/30</td><td class="num">22/30</td><td class="num">0/30</td></tr>
+    <tr data-metric="median_raw_tokens"><td>예산 전 문맥 토큰 중앙값</td><td class="num">1,691</td><td class="num">4,276</td><td class="num">36,889</td></tr>
+    <tr data-metric="median_packed_tokens"><td>예산 후 문맥 토큰 중앙값</td><td class="num">1,691</td><td class="num">2,052</td><td class="num">0</td></tr>
+    <tr><td>첫 문맥부터 예산 초과인 질문</td><td class="num">0/30</td><td class="num">0/30</td><td class="num">30/30</td></tr>
+  </table>
+  <p><strong>Hit</strong>는 알려진 정답 근거가 하나라도 포함된 질문의 비율이다. <strong>MRR</strong>은 처음 정답 근거가 나온 검색 순위의 역수 평균이다. <strong>근거 Recall</strong>은 질문별로 <code>찾은 정답 근거 ID 수 / 필요한 정답 근거 ID 수</code>를 계산한 뒤 30개 질문을 평균한다. 예를 들어 복합 질문에서 두 근거 중 하나만 찾으면 Hit는 1, Recall은 0.5다.</p>
+  <p>문맥 지표는 검색 상위 5개에서 시작해 확장·중복 제거·예산 적용한 결과를 대상으로 한다. 실제 반환 문맥이 반드시 5개라는 뜻은 아니다. 이전 29번의 청크 수 기반 Recall과 이번의 고정 근거 ID 기반 Recall은 분모가 다르므로 직접 비교하지 않는다. 또한 문서의 의미상 관련 근거를 전부 주석화한 Recall이나 LLM의 정확도·할루시네이션 지표가 아니다.</p>
+  <p>A는 전체 예산 내 근거 회수가 가장 높고, B는 검색 MRR이 가장 높다. 즉 B가 처음 찾은 근거의 순위는 평균적으로 더 좋지만, 충분한 근거를 전달한 질문 수는 A가 많다. 순위와 누락률은 같은 성능이 아니다.</p>
+
+  <h2>4. C의 0점을 어떻게 해석해야 하는가</h2>
+  <p>C는 작은 검색 단위에서 26/30문항에 적중했고, 실제 제목 부모로 확장하면 30/30문항의 모든 정답 인용문이 들어 있었다. 그러나 첫 반환 단위부터 2,400토큰을 넘어서 현재 packing 규칙이 즉시 중단했다. 결과적으로 실제 전달 예정 문맥은 30문항 모두 비어 있었다.</p>
+  <p>예산 전 반환 문맥의 중앙값은 36,889토큰이고 NAVER 복합 질문 M_N은 합계 908,791토큰이다. 이 합계는 서로 다른 부모 사이의 겹치는 내용도 포함할 수 있어 문서의 고유 텍스트 길이가 아니다. 넓은 장 전체를 포함하면 정답 포함률은 높아지지만, 정확하게 좁힌 근거라고 보기는 어렵다.</p>
+  <div class="card caution">따라서 <strong>“제목 계층 청킹은 성능이 나쁘다”는 결론은 낼 수 없다.</strong> 확인된 문제는 <strong>“큰 제목 부모를 통째로 반환 + 2,400토큰 예산 + 초과 시 즉시 중단”</strong>의 조합이다. 제목 구조 보존과 실제 입력 문맥을 조립하는 정책을 구분해야 한다. 부모 깊이 제한, 근거 주변 문맥 반환 등은 가능한 후속 후보이며 이번에는 구현하거나 검증하지 않았다.</div>
+  <p>반대로 예산 전 Recall 100%만 보고 C를 채택하는 것도 적절하지 않다. 필요한 근거가 넓은 문맥 어딘가에 있다는 사실과, LLM이 읽을 수 있는 제한된 입력 안에 그 근거가 있다는 사실은 다르다. 2,400은 이번 비교에서 고정한 E5 토큰 예산이며 최종 운영 모델의 확정 입력 한도가 아니다.</p>
+
+  <h2>5. 질문 유형·기업별 결과</h2>
+  <table id="question-groups">
+    <tr><th>질문 유형</th><th>지표</th><th class="num">A</th><th class="num">B</th><th class="num">C</th></tr>
+    <tr><td rowspan="2">단일 근거 25개</td><td>예산 후 Hit</td><td class="num">22/25 (88%)</td><td class="num">19/25 (76%)</td><td class="num">0/25</td></tr>
+    <tr><td>예산 후 근거 Recall</td><td class="num">0.88</td><td class="num">0.76</td><td class="num">0.00</td></tr>
+    <tr><td rowspan="2">복합 근거 5개</td><td>예산 후 Hit</td><td class="num">4/5 (80%)</td><td class="num">4/5 (80%)</td><td class="num">0/5</td></tr>
+    <tr><td>예산 후 근거 Recall</td><td class="num">0.60</td><td class="num">0.70</td><td class="num">0.00</td></tr>
+  </table>
+  <p>B는 복합 질문에서 A보다 한 근거를 추가로 회수했다. 다만 복합 질문이 5개뿐이므로 모든 비교·분석 질문에 더 좋다고 일반화하지 않는다. 단일 질문의 우세와 복합 질문의 우세가 달라 최종 운영 구조는 사용자 판단과 추가 근거가 필요하다.</p>
+  <table id="companies">
+    <tr><th>기업 — 기업당 6문항</th><th class="num">A 예산 후 Hit</th><th class="num">A Recall</th><th class="num">B 예산 후 Hit</th><th class="num">B Recall</th><th class="num">C Hit / Recall</th></tr>
+    <tr><td>삼성전자</td><td class="num">6/6</td><td class="num">1.000000</td><td class="num">6/6</td><td class="num">1.000000</td><td class="num">0/6 / 0</td></tr>
+    <tr><td>NAVER</td><td class="num">6/6</td><td class="num">1.000000</td><td class="num">6/6</td><td class="num">1.000000</td><td class="num">0/6 / 0</td></tr>
+    <tr><td>리노공업</td><td class="num">5/6</td><td class="num">0.750000</td><td class="num">4/6</td><td class="num">0.583333</td><td class="num">0/6 / 0</td></tr>
+    <tr><td>LG생활건강</td><td class="num">5/6</td><td class="num">0.750000</td><td class="num">4/6</td><td class="num">0.666667</td><td class="num">0/6 / 0</td></tr>
+    <tr><td>HDC</td><td class="num">4/6</td><td class="num">0.666667</td><td class="num">3/6</td><td class="num">0.500000</td><td class="num">0/6 / 0</td></tr>
+  </table>
+
+  <h2>6. 개별 사례: 어디서 얻고 어디서 잃었는가</h2>
+  <table id="cases">
+    <tr><th>사례</th><th class="num">A 예산 후 Recall</th><th class="num">B 예산 후 Recall</th><th>관측과 해석</th></tr>
+    <tr><td>H01: HDC 지주회사 자체의 수익원</td><td class="num">1.0</td><td class="num">0.0</td><td>B는 검색 단위와 확장 문맥에 근거가 있었다. 예산 적용 후에는 사라졌다. 검색 실패가 아니라 문맥 배치·예산 손실이다.</td></tr>
+    <tr><td>L05: LG생활건강의 해외 R&amp;D 국가·연구 역량</td><td class="num">1.0</td><td class="num">0.0</td><td>B 역시 검색·확장 단계에서는 정답 근거가 있었으나 예산 후 누락됐다.</td></tr>
+    <tr><td>R05: 리노공업의 원자재·에너지 관련 위험</td><td class="num">1.0</td><td class="num">0.0</td><td>B는 검색 단위와 확장 문맥 모두 근거를 놓쳤다. 고정 검색기 아래의 분할·검색 차이이며 LLM·프롬프트 오류가 아니다.</td></tr>
+    <tr><td>M_L: LG생활건강 사업 구분 + 계절적 매출 보완 관계</td><td class="num">0.5</td><td class="num">1.0</td><td>A는 필요한 두 근거 중 하나, B는 둘 다 담았다. B는 검색 단위 Recall 0.5에서 부모 확장 후 1.0으로 올라갔고 예산 안에도 유지했다.</td></tr>
+    <tr><td>R04: 리노공업 확정급여제도의 사외적립자산</td><td class="num">1.0</td><td class="num">1.0</td><td>B는 검색 상위 자식에 정답 인용문이 없었지만 부모에는 있었다. 확장 후 Recall 1.0, 예산 적용 후에도 1.0이다. 부모 확장의 유효 사례지만 A보다 최종 점수가 높은 사례는 아니다.</td></tr>
+  </table>
+  <p>A/B의 예산 후 Recall 차이는 H01·L05·R05·M_L 네 질문에서 발생했다. 나머지 26개는 동일하다. 두 방식 모두 R01·L01·H04·M_H에서는 예산 후 정답 근거를 하나도 담지 못했다. 이러한 실패를 구분하면 검색 후보 개선이 필요한지, 문맥 조립 개선이 필요한지 판단할 수 있다.</p>
+
+  <h2>7. 비용·속도·자원</h2>
+  <table id="latency">
+    <tr><th>지표</th><th class="num">A</th><th class="num">B</th><th class="num">C</th></tr>
+    <tr data-metric="median_search_ms"><td>검색 구성 시간 중앙값 ms</td><td class="num">22.727337</td><td class="num">22.815032</td><td class="num">22.837119</td></tr>
+    <tr data-metric="p95_search_ms"><td>검색 구성 시간 p95 ms</td><td class="num">27.892619</td><td class="num">29.468511</td><td class="num">28.217163</td></tr>
+    <tr data-metric="median_context_ms"><td>문맥 조립 시간 중앙값 ms</td><td class="num">8.313668</td><td class="num">7.494846</td><td class="num">26.800232</td></tr>
+  </table>
+  <table id="resources">
+    <tr><th>5개 보고서 합계</th><th class="num">A</th><th class="num">B</th><th class="num">C</th></tr>
+    <tr><td>검색 청크 / 반환 단위 수</td><td class="num">2,530 / 2,530</td><td class="num">2,769 / 967</td><td class="num">2,475 / 61</td></tr>
+    <tr><td>청킹 시간 초</td><td class="num">5.63</td><td class="num">8.56</td><td class="num">43.30</td></tr>
+    <tr><td>BM25 색인 구성 시간 초</td><td class="num">12.34</td><td class="num">11.58</td><td class="num">11.60</td></tr>
+    <tr><td>E5 색인 구성 시간 초 — 캐시 재사용 포함</td><td class="num">97.14</td><td class="num">49.77</td><td class="num">1.04</td></tr>
+    <tr><td>신규 임베딩 텍스트 / 캐시 재사용 레코드</td><td class="num">2,498 / 32</td><td class="num">1,252 / 1,517</td><td class="num">22 / 2,453</td></tr>
+    <tr><td>검색 텍스트 MiB</td><td class="num">2.4651</td><td class="num">2.4774</td><td class="num">2.4625</td></tr>
+    <tr><td>반환용 문맥 텍스트 MiB</td><td class="num">2.4651</td><td class="num">2.3594</td><td class="num">6.7213</td></tr>
+    <tr><td>메모리 SQLite 크기 MiB</td><td class="num">3.2500</td><td class="num">3.2461</td><td class="num">3.2500</td></tr>
+    <tr><td>벡터 배열 크기 MiB</td><td class="num">3.7061</td><td class="num">4.0562</td><td class="num">3.6255</td></tr>
+  </table>
+  <p><strong>비용 해석:</strong> LLM·OpenAI 임베딩 호출이 없으므로 이 실험의 해당 API 호출 요금은 발생하지 않았다. 로컬 CPU·RAM·전력 비용과 OpenDART 호출 한도 소비는 별개이며 금액으로 측정하지 않았다. E5 파라미터 크기 약 448.81MiB는 모델 파라미터만의 값으로 실행 전체 RAM이나 VRAM 사용량이 아니다. GPU를 사용하지 않았으므로 VRAM 측정 결과는 없다.</p>
+  <p><strong>속도 해석:</strong> B/C의 E5 구성 시간이 짧은 주원인은 앞선 후보에서 만든 동일 텍스트 임베딩을 재사용했기 때문이다. C가 독립적인 처음 실행에서 1초 만에 임베딩된다는 뜻이 아니다. 검색 시간은 준비된 색인을 대상으로 한 구간 측정이며 XML 다운로드·모델 로드·LLM 생성이 포함된 사용자 전체 지연시간이 아니다. 약 0.22초의 모델 로드도 콜드 스타트 벤치마크로 해석하지 않는다.</p>
+  <p>토큰은 E5 기준이라 운영 LLM의 토큰 수·입력 요금과 직접 같지 않다. 다만 C의 큰 문맥과 겹치는 부모 내용은 문맥 조립·저장 공간의 부담이 관측됐다는 근거다. 이번 선택에서는 미세한 검색 지연시간보다 근거 회수와 예산 내 전달을 우선한다.</p>
+
+  <h2>8. 채택·미채택과 남은 판단</h2>
+  <table id="decisions">
+    <tr><th>후보</th><th>판단</th><th>이유</th><th>한계·보류 사항</th></tr>
+    <tr><td>A</td><td><strong>다음 비교의 기준선 유지 권장</strong><br>최종 운영 채택은 보류</td><td>현재 공통 예산에서 Hit와 근거 Recall이 가장 높고, 문맥 길이가 짧다. 필요한 근거를 모두 담은 질문도 24/30으로 가장 많다.</td><td>B보다 MRR과 복합 질문 Recall이 낮다. 개발셋 결과만으로 최종 답변 품질까지 입증하지 않았다.</td></tr>
+    <tr><td>B</td><td><strong>현재 전체 질문 기본값으로는 미채택 권장</strong><br>복합 질문 후보는 유지</td><td>전체 예산 후 Recall 0.75가 A의 0.8333보다 낮다. 부모 확장이 예산 손실을 만든 사례가 있다.</td><td>MRR이 가장 높고 M_L·R04에서 부모 확장의 효과가 확인됐다. 복합 질문 5개에서는 Recall 0.70으로 A보다 높아 무가치한 방식은 아니다.</td></tr>
+    <tr><td>C</td><td><strong>현재 전체 부모 반환 정책은 미채택 권장</strong><br>제목 계층 방식 자체는 보류</td><td>현재 예산 조립 정책에서 30개 질문 모두 반환 문맥이 비었다. 예산 전 100%는 큰 장 전체를 포함한 결과라 그 자체로 효율적인 검색을 입증하지 않는다.</td><td>검색 단위 Hit는 A와 같았다. 제목 계층 보존과 반환 정책을 분리해 검토할 여지는 있으나 개선 효과는 아직 모르겠다.</td></tr>
+  </table>
+  <p>위 판단은 저장된 개발 결과에 대한 권장안이다. 지표별 우열이 나뉘므로 자동으로 최종 파이프라인을 확정하지 않는다. 이번 작업에서는 결과 해석·보고서·Git 보존만 진행하며 새로운 청킹 실험이나 운영 코드를 추가하지 않는다.</p>
+
+  <h2>9. 한계와 재현 근거</h2>
+  <ul>
+    <li>5기업·2024년 사업보고서 5개와 30개 개발 질문만 평가했다. 다른 연도·기업·실제 사용자 질문 전체로 일반화하지 않는다.</li>
+    <li>복합 질문은 5개로 적다. 지표 차이에 대한 통계적 유의성·독립 holdout·LLM 답변 평가는 수행하지 않았다.</li>
+    <li>정답은 고정 인용문 포함 여부로 판정한다. 같은 의미의 다른 표현이나 문서의 모든 관련 근거를 완전하게 주석화하지 않았다.</li>
+    <li>같은 예산을 사용했지만 부모 전체를 통째로 넣는 packing은 큰 문맥에 불리하다. 청킹·반환·예산 정책의 결합 결과로 해석한다.</li>
+    <li>정답 보존 확인과 오류 출력 0건은 XML 본문 전체의 무손실 추출을 증명하지 않는다.</li>
+    <li>저장된 실행 로그의 90개 기록으로 Hit·Recall·예산 후 토큰·완전 근거 회수 수를 재계산해 저장 요약과 대조했다. MRR·시간은 저장 요약을 사용했다. 실행된 notebook 코드는 수정하거나 재실행하지 않았다.</li>
+  </ul>
+  <p>평가셋 SHA-256: <code>a8bbc6202b3b0956c7519660a6e760eb1dab9be1d808118bdba1e7557c3c6ebe</code><br>재사용 코드 AST SHA-256: <code>0c51db7110a13828d60f8a92999c33ef19661bc0dc5d7fce16c68862082c3eab</code></p>
+  <p class="foot">근거: <a href="../../../notebooks/v1/30_parent_child_chunking_comparison.ipynb">30번 notebook 저장 코드·출력</a> · <a href="29_rrf_weight_comparison.html">29번 RRF 비교 보고서</a> · <a href="../../EVALUATION_METRICS.md">평가지표 문서</a> · <a href="../../references/technical/README.md">기술 레퍼런스</a></p>
+</body>
+</html>
