@@ -54,3 +54,14 @@ V1-27의 실제형 질문 6개는 26번에서 확인한 같은 근거 6개를 �
 | [Kiwi 형태소 분석 API](https://bab2min.github.io/kiwipiepy/) | `Kiwi.tokenize()`가 한국어를 형태소와 품사로 나눈다. | 조사·어미를 제외한 핵심 형태소를 FTS5 입력 토큰으로 사용한다. 선택한 품사 집합 자체도 검색 품질에 영향을 줄 수 있으므로 현재 비교의 조건으로 기록한다. |
 
 문자 n-gram과 형태소 BM25는 토큰 단위와 점수식이 함께 다르다. 후속 비교는 두 **어휘 검색 구성 전체**의 우열만 해석하며 BM25 점수식의 독립 효과로 해석하지 않는다. FTS5 실험용 테이블은 XML의 재무·사업 필드를 구조화한 DB가 아니다.
+
+## V1-29 Weighted RRF 비교 (2026-10-05 확인)
+
+| 자료 | 확인한 사실 | FinSight에서의 활용 |
+|---|---|---|
+| [LangChain EnsembleRetriever 공식 구현](https://github.com/langchain-ai/langchain/blob/master/libs/langchain/langchain_classic/retrievers/ensemble.py) | 검색기별 `weights`와 순위 완화 상수 `c`를 사용해 Weighted RRF로 순위를 결합한다. | E5·BM25 가중치만 변경하는 notebook 함수의 수식 근거. 현재 실험에서 이 클래스를 호출하는 것은 아니다. |
+| [Elastic RRF 공식 문서](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion) | `rank_constant`는 순위별 기여 차이를, `rank_window_size`는 결합할 후보 범위를 조절한다. 이 페이지의 구현은 검색기에 동일 가중치를 준다. | 결합 가중치와 후보 수·순위 상수를 구분하고 이번에는 후보 20·상수 60을 고정한다. |
+
+추가 개발 질문은 [NAVER 공식 IR](https://www.navercorp.com/investment/irReports)의 2024 사업보고서, [LG생활건강 공식 사업보고서](https://www.lghnh.com/ir/business_report.jsp)의 2024 보고서, [HDC 공식 공고](https://www.hdc-holdings.com/ko/ir/disclosure/notice/view?fromNotice=true&inIdx=6)의 2024 보고서를 읽고 검색 실행 전에 작성했다. 공식 IR PDF는 정답 수집 근거이며, 검색 입력은 기존 OpenDART XML로 유지한다. 실제 XML·청크에도 인용문이 존재하는지 실행 시 확인해야 한다.
+
+29번은 5기업·5개 2024 보고서·25개 **개발 질문**이다. 기업별 2개 연도나 독립 holdout을 확보한 것으로 표현하지 않는다. 비율 후보는 E5:BM25 = 10:0 / 7:3 / 5:5 / 3:7 / 0:10이며, 정답은 제한된 인용문 기반이므로 전체 관련 근거에 대한 완전한 relevance 판정이 아니다.
